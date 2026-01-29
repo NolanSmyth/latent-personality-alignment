@@ -192,7 +192,10 @@ def process_generic_chat_dataset(
     # loader for generic datasets of the form (prompt, positive_completion, negative_completion)
     assert not (system_prompt is not None and system_prompt_column is not None), "Only one of system_prompt and system_prompt_column can be specified"
 
-    dataset = load_dataset(dataset, **dataset_kwargs)
+    if isinstance(dataset, str) and dataset.endswith(".csv") and os.path.exists(dataset):
+        dataset = load_dataset("csv", data_files=dataset, **dataset_kwargs)
+    else:
+        dataset = load_dataset(dataset, **dataset_kwargs)
 
     if prompt_column != "prompt":
         dataset = dataset.rename_column(prompt_column, "prompt")
@@ -272,10 +275,14 @@ def process_generic_chat_dataset(
         return [process_sequence(seq) for seq in batch_of_sequences]
 
     def tokenize_batch(examples):
-        examples["prompt_tokens"] = remove_duplicate_bos_batched(
-            tokenizer(examples["prompt"], add_special_tokens=True).input_ids,
-            tokenizer.bos_token_id
-        )
+        if tokenizer.bos_token is not None:
+            examples["prompt_tokens"] = remove_duplicate_bos_batched(
+                tokenizer(examples["prompt"], add_special_tokens=True).input_ids,
+                tokenizer.bos_token_id
+            )
+        else: #Qwen models dont use BOS token
+            examples["prompt_tokens"] = tokenizer(examples["prompt"], add_special_tokens=True).input_ids
+
         examples["adv_tokens"] = tokenizer(examples["adv_completion"], add_special_tokens=False).input_ids
         examples["def_tokens"] = tokenizer(examples["def_completion"], add_special_tokens=False).input_ids
         return examples

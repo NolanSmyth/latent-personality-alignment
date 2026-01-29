@@ -5,12 +5,9 @@ python-dotenv
 wandb
 datasets
 omegaconf
-lm_eval
 sentencepiece
 jupyter
-transformer-lens
 matplotlib
 Levenshtein
 openai
-fastchat
 deepspeed

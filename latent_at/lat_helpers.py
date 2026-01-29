@@ -389,7 +389,9 @@ def do_defense_step(
                 model.enable_adapter_layers()
             new_logits = model(input_ids=sft_tokens).logits
             new_logits = new_logits[sft_labels_mask].softmax(dim=-1)
-            kl_loss = F.kl_div(base_logits, new_logits)
+            # use 'batchmean' reduction to match KL divergence math and avoid PyTorch's
+            # warning about the upcoming change in behaviour of 'mean'
+            kl_loss = F.kl_div(base_logits, new_logits, reduction='batchmean')
         loss["kl"] = kl_loss.item()
         loss["total"] += kl_loss.item()
         kl_loss = kl_loss / (kl_loss.detach() + 1e-8)

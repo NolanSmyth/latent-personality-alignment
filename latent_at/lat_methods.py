@@ -62,13 +62,12 @@ def projected_gradient_descent(
     clear_hooks(model)
     if type(layer) == int:
         layer = [layer,]
-
     if add_completions_pgd:
         completions_mask = torch.any(torch.stack([batch["adv_labels_mask"], batch["def_labels_mask"]]), dim=0)
         attack_mask = torch.any(torch.stack([batch["prompt_mask"], completions_mask]), dim=0)
         create_adversary=lambda x: GDAdversary(
-            # dim=model.config.hidden_size,
-            dim=4096,
+            dim=model.config.hidden_size,
+            # dim=4096,
             device=device,
             epsilon=epsilon,
             attack_mask = attack_mask.to(device),
@@ -76,8 +75,8 @@ def projected_gradient_descent(
         )
     else:
         create_adversary=lambda x: GDAdversary(
-            # dim=model.config.hidden_size,
-            dim=4096,
+            dim=model.config.hidden_size,
+            # dim=4096,
             device=device,
             epsilon=epsilon,
             attack_mask = batch["prompt_mask"].to(device) if "prompt_mask" in batch else batch["adv_labels_mask"].to(device),
@@ -215,7 +214,8 @@ class LATBaseClass:
                 "post_adv_callback",
                 "post_def_callback"
             ],
-            name=name
+            name=name,
+            id=name
         )
         clear_hooks(self.model)
     
@@ -517,9 +517,9 @@ class ProjectedGradLAT(LATBaseClass):
             if self.N_checkpoints:
                 step_checkpoint = self.num_steps is not None and (epoch+1)/self.num_steps >= next_checkpoint/self.N_checkpoints
                 time_checkpoint = self.time_limit is not None and elapsed_time/self.time_limit >= next_checkpoint/self.N_checkpoints
-                if step_checkpoint or time_checkpoint:
-                    print(f"Saving checkpoint at epoch {epoch}")
-                    self.save_checkpoint(next_checkpoint)
+                if step_checkpoint or time_checkpoint: #or ((epoch > 25) and (epoch<40)):
+                    print(f"Saving checkpoint at epoch {epoch+1}")
+                    self.save_checkpoint(epoch+1)
                     next_checkpoint += 1
             # Time limit
             if self.time_limit is not None and elapsed_time > self.time_limit:
