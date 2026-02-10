@@ -1,3 +1,7 @@
+AI_CONTEXT.md
+current_state.md
+.github
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
