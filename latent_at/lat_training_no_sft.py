@@ -12,7 +12,10 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import get_peft_model, LoraConfig
 from tasks.harmbench.FastHarmBenchEvals import run_attack_evals, run_general_evals
 
-from .lat_datasets import process_generic_chat_dataset, LatentAdversarialTrainingDataCollator
+from .lat_datasets import (
+    process_generic_chat_dataset,
+    LatentAdversarialTrainingDataCollator,
+)
 from .lat_methods import ProjectedGradLAT
 
 
@@ -52,30 +55,35 @@ def eval_mode(model):
             # Best-effort: ignore if restoration fails
             pass
 
+
 def evaluate_model(model, tokenizer, model_type, cls, cls_tokenizer, cache_dir):
     """Evaluate the model on HarmBench and general capability tasks."""
     with eval_mode(model):
         with torch.no_grad():
             print("Running HarmBench evaluations...")
-            harmbench_asr = run_attack_evals(model=model, 
-                                             tokenizer=tokenizer,
-                                             model_type=model_type,
-                                             pretrained_cls="llama",
-                                             cls=cls,
-                                             cls_tokenizer=cls_tokenizer,
-                                             do_sample=False,
-                                             cache_dir=cache_dir,
-                                             verbose=True,
-                                             move_cls_device=True,
-                                             move_model_device=True)
-            
+            harmbench_asr = run_attack_evals(
+                model=model,
+                tokenizer=tokenizer,
+                model_type=model_type,
+                pretrained_cls="llama",
+                cls=cls,
+                cls_tokenizer=cls_tokenizer,
+                do_sample=False,
+                cache_dir=cache_dir,
+                verbose=True,
+                move_cls_device=True,
+                move_model_device=True,
+            )
+
             harmbench_logs = {f"harmbench/{k}": v for k, v in harmbench_asr.items()}
             print("Running utility evaluations...")
-            utility_acc = run_general_evals(model=model,
-                                            tokenizer=tokenizer,
-                                            model_type=model_type,
-                                            evals_to_include=["MMLU", "HellaSwag", "Winogrande", "SciQ", "Lambada"])
-            utility_logs = ({f"utility/{k}": v for k, v in utility_acc.items()})
+            utility_acc = run_general_evals(
+                model=model,
+                tokenizer=tokenizer,
+                model_type=model_type,
+                evals_to_include=["MMLU", "HellaSwag", "Winogrande", "SciQ", "Lambada"],
+            )
+            utility_logs = {f"utility/{k}": v for k, v in utility_acc.items()}
     torch.cuda.empty_cache()
     gc.collect()
     return harmbench_logs, utility_logs
@@ -86,9 +94,7 @@ def load_model(model_name):
 
     print(f"Loading model {model_name}...")
     model = AutoModelForCausalLM.from_pretrained(
-        model_name,
-        dtype=model_dtype,
-        device_map="cuda"
+        model_name, torch_dtype=model_dtype, device_map="cuda"
     )
     print("Model loaded.")
 
@@ -104,7 +110,7 @@ def load_model(model_name):
         tokenizer.pad_token_id = tokenizer.eos_token_id
         tokenizer.padding_side = "left"
     elif "zephyr" in model_name or "mistral" in model_name:
-        model_type = "zephyr"    
+        model_type = "zephyr"
         tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
         tokenizer.pad_token_id = tokenizer.unk_token_id
         tokenizer.padding_side = "left"
@@ -119,26 +125,32 @@ def load_model(model_name):
     print("Tokenizer loaded.")
     return model, tokenizer, model_type
 
-def load_data(harmful_dataset, benign_dataset, tokenizer, model_type, system_prompt, batch_size):
+
+def load_data(
+    harmful_dataset, benign_dataset, tokenizer, model_type, system_prompt, batch_size
+):
     # Normalize system prompt variable used for different model formats
-    if model_type == "llama2": # LLama 2 Chat Formatting
+    if model_type == "llama2":  # LLama 2 Chat Formatting
         use_tokenizer_template = True
         custom_prompt_template = None
         custom_completion_template = None
-    elif model_type == "llama3": # LLama 3 chat formatting
+    elif model_type == "llama3":  # LLama 3 chat formatting
         use_tokenizer_template = False
-        custom_prompt_template = f"<|start_header_id|>system<|end_header_id|>\n\n{system_prompt}<|eot_id|>"+"<|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
-        custom_completion_template="{completion}"
+        custom_prompt_template = (
+            f"<|start_header_id|>system<|end_header_id|>\n\n{system_prompt}<|eot_id|>"
+            + "<|start_header_id|>user<|end_header_id|>\n\n{prompt}<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+        )
+        custom_completion_template = "{completion}"
     elif model_type == "qwen3":  # Qwen 3 chat formatting
         use_tokenizer_template = False
         custom_prompt_template = "<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
-        custom_completion_template="{completion}"
+        custom_completion_template = "{completion}"
     else:  # Zephyr chat formatting
         # for models like zephyr/mistral we don't use the system prompt templating
         use_tokenizer_template = False
         custom_prompt_template = "<|user|>\n{prompt}</s> \n <|assistant|>\n"
-        custom_completion_template="{completion}"
-    
+        custom_completion_template = "{completion}"
+
     print("Processing harmful dataset for LAT...")
     lat_dataset = process_generic_chat_dataset(
         tokenizer,
@@ -149,7 +161,7 @@ def load_data(harmful_dataset, benign_dataset, tokenizer, model_type, system_pro
         use_tokenizer_template=use_tokenizer_template,
         system_prompt=system_prompt,
         custom_prompt_template=custom_prompt_template,
-        custom_completion_template=custom_completion_template
+        custom_completion_template=custom_completion_template,
     )
 
     lat_dataloader = DataLoader(
@@ -158,9 +170,8 @@ def load_data(harmful_dataset, benign_dataset, tokenizer, model_type, system_pro
         shuffle=True,
         drop_last=True,
         collate_fn=LatentAdversarialTrainingDataCollator(
-            tokenizer.pad_token_id,
-            truncate_length=2048
-        )
+            tokenizer.pad_token_id, truncate_length=2048
+        ),
     )
 
     print("Processing benign dataset for supervised finetuning...")
@@ -175,7 +186,7 @@ def load_data(harmful_dataset, benign_dataset, tokenizer, model_type, system_pro
         system_prompt=system_prompt,
         custom_prompt_template=custom_prompt_template,
         custom_completion_template=custom_completion_template,
-        add_eos_token=True
+        add_eos_token=True,
     )
 
     sft_dataloader = DataLoader(
@@ -184,32 +195,53 @@ def load_data(harmful_dataset, benign_dataset, tokenizer, model_type, system_pro
         shuffle=True,
         drop_last=True,
         collate_fn=LatentAdversarialTrainingDataCollator(
-            tokenizer.pad_token_id,
-            truncate_length=2048
-        )
+            tokenizer.pad_token_id, truncate_length=2048
+        ),
     )
     return lat_dataloader, sft_dataloader
 
-def get_trainer(model, model_type, lat_dataloader, sft_dataloader, lat_config, project_dir):
-    print("Setting up LAT trainer...")
+
+def get_trainer(
+    model, model_type, lat_dataloader, sft_dataloader, lat_config, project_dir
+):
+    print("Setting up LAT trainer (no_sft version - SFT and KL losses disabled)...")
     # Set the attack hyperparameters
-    if model_type == 'llama2':  # use llama2-7b
-        adv_loss_coefs = {"toward": 0.5, "away": 0.5,}
-        def_loss_coefs = {"sft": 1.5, "toward": 0.5, "away": 0.5,}
+    # NOTE: This is the no_sft version - all losses except "toward" and "away" are set to 0
+    if model_type == "llama2":  # use llama2-7b
+        adv_loss_coefs = {
+            "toward": 0.5,
+            "away": 0.5,
+        }
+        def_loss_coefs = {
+            "toward": 0.5,
+            "away": 0.5,
+        }  # SFT disabled (was 1.5)
         inner_learning_rate = 5e-2
         outer_learning_rate = 2e-5
         epsilon = 6.0
         add_completions_pgd = False
-    elif model_type == 'llama3': # use llama3-8b
-        adv_loss_coefs = {"toward": 0.5, "away": 0.5,}
-        def_loss_coefs = {"kl": 0.1, "toward": 0.5, "away": 0.5,}
+    elif model_type == "llama3":  # use llama3-8b
+        adv_loss_coefs = {
+            "toward": 0.5,
+            "away": 0.5,
+        }
+        def_loss_coefs = {
+            "toward": 0.5,
+            "away": 0.5,
+        }  # KL disabled (was 0.1)
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
         epsilon = 6.0
         add_completions_pgd = True
-    elif model_type == 'qwen3': # use qwen3-8b
-        adv_loss_coefs = {"toward": 0.5, "away": 0.5,}
-        def_loss_coefs = {"kl": 0.1, "toward": 0.5, "away": 0.5,}
+    elif model_type == "qwen3":  # use qwen3-8b
+        adv_loss_coefs = {
+            "toward": 0.5,
+            "away": 0.5,
+        }
+        def_loss_coefs = {
+            "toward": 0.5,
+            "away": 0.5,
+        }  # KL disabled (was 0.1)
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
         epsilon = 6.0
@@ -222,41 +254,62 @@ def get_trainer(model, model_type, lat_dataloader, sft_dataloader, lat_config, p
         adv_loss_coefs=adv_loss_coefs,  # adversary's loss coefs
         def_loss_coefs=def_loss_coefs,  # model's loss coefs
         pgd_layers=["embedding", 8, 16, 24, 30],  # what layers to attack
-        pgd_iterations_per_step=lat_config['pgd_iterations_per_step'],  # how many steps of projected gradient descent to do
-        model_layers=list(range(0, model.config.num_hidden_layers)),  # model layers to train
+        pgd_iterations_per_step=lat_config[
+            "pgd_iterations_per_step"
+        ],  # how many steps of projected gradient descent to do
+        model_layers=list(
+            range(0, model.config.num_hidden_layers)
+        ),  # model layers to train
         epsilon=epsilon,  # attack l2 constraint
         inner_learning_rate=inner_learning_rate,  # adversary lr
         outer_learning_rate=outer_learning_rate,  # model lr
-        model_iterations_per_step=lat_config['model_iterations_per_step'],  # how many times to train on each step
-        num_steps=lat_config['num_steps'],  # number of epochs
-        max_batch_per_acc=lat_config['max_batch_per_acc'],  # max size of a minibatch
+        model_iterations_per_step=lat_config[
+            "model_iterations_per_step"
+        ],  # how many times to train on each step
+        num_steps=lat_config["num_steps"],  # number of epochs
+        max_batch_per_acc=lat_config["max_batch_per_acc"],  # max size of a minibatch
         only_train_lora=True,  # train using low rank adapters
-        l2_regularization=lat_config['l2_regularization'],  # coef for l2 weight regularization
+        l2_regularization=lat_config[
+            "l2_regularization"
+        ],  # coef for l2 weight regularization
         model_layers_module="base_model.model.model.layers",  # where the model layers are
-        reinitialize_dev_optim=lat_config['reinitialize_dev_optim'],  # whether to reinitialize optimizer every lat step,
+        reinitialize_dev_optim=lat_config[
+            "reinitialize_dev_optim"
+        ],  # whether to reinitialize optimizer every lat step,
         add_completions_pgd=add_completions_pgd,  # Whether to add PGD over the completion tokens
-        N_checkpoints=lat_config['N_checkpoints'],  # number of checkpoints to keep on disk
-        checkpoint_dir=project_dir
+        N_checkpoints=lat_config[
+            "N_checkpoints"
+        ],  # number of checkpoints to keep on disk
+        checkpoint_dir=project_dir,
     )
 
     return pgd_trainer
 
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_name", type=str, default='meta-llama/Meta-Llama-3-8B-Instruct')
+    parser.add_argument(
+        "--model_name", type=str, default="meta-llama/Meta-Llama-3-8B-Instruct"
+    )
     parser.add_argument("--benign_dataset", type=str, required=True)
     parser.add_argument("--harmful_dataset", type=str, required=True)
-    parser.add_argument("--cache_dir", type=str, default=os.path.join(os.path.dirname(__file__), 'cache'))
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default=os.path.join(os.path.dirname(__file__), "cache"),
+    )
     parser.add_argument("--system_prompt_path", type=str, default=None)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--project_name", type=str, default="lat_project")
-    parser.add_argument("--eval", action='store_true')
+    parser.add_argument("--eval", action="store_true")
     parser.add_argument("--eval_freq", type=int, default=1)
-    parser.add_argument("--lat_config_path", type=str, default=os.path.join(os.path.dirname(__file__), 'lat_config.json'))
-    parser.add_argument("--wandb-offline", action='store_true')
+    parser.add_argument(
+        "--lat_config_path",
+        type=str,
+        default=os.path.join(os.path.dirname(__file__), "lat_config.json"),
+    )
+    parser.add_argument("--wandb-offline", action="store_true")
     parser.add_argument("--timestamp", type=str)
-    
-
 
     args = parser.parse_args()
 
@@ -275,7 +328,7 @@ def main():
 
     # Load system prompt from file if provided
     if system_prompt_path is not None:
-        with open(system_prompt_path, 'r') as f:
+        with open(system_prompt_path, "r") as f:
             system_prompt = f.read().strip()
     else:
         print("No system prompt path provided, using empty system prompt.")
@@ -293,10 +346,10 @@ def main():
         batch_size=batch_size,
     )
     print("Data loaded.")
-    
+
     # Load lat config defaults from JSON (can be overridden by CLI args)
     if os.path.exists(lat_config_path):
-        with open(lat_config_path, 'r') as f:
+        with open(lat_config_path, "r") as f:
             lat_config = json.load(f)
     else:
         raise Exception(f"LAT config file not found at {lat_config_path}")
@@ -312,10 +365,12 @@ def main():
         print("Loading ais/HarmBench-Llama-2-13b-cls from huggingface")
         try:
             # if that fails, load from huggingface
-            cls = AutoModelForCausalLM.from_pretrained("cais/HarmBench-Llama-2-13b-cls",
-                                                            dtype=torch.bfloat16,
-                                                            device_map="cpu")
-            cls_tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf")
+            cls = AutoModelForCausalLM.from_pretrained(
+                "cais/HarmBench-Llama-2-13b-cls", dtype=torch.bfloat16, device_map="cpu"
+            )
+            cls_tokenizer = AutoTokenizer.from_pretrained(
+                "meta-llama/Llama-2-7b-chat-hf"
+            )
             cls_tokenizer.pad_token_id = cls_tokenizer.unk_token_id
             cls_tokenizer.padding_side = "left"
             print("HarmBench classifier loaded.")
@@ -328,7 +383,7 @@ def main():
 
     if timestamp is None:
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S-%f")
-    project_dir = cache_dir+"/"+project_name+"_"+timestamp
+    project_dir = cache_dir + "/" + project_name + "_" + timestamp
     os.makedirs(project_dir, exist_ok=True)
 
     trainer = get_trainer(
@@ -337,7 +392,7 @@ def main():
         lat_dataloader=lat_dataloader,
         sft_dataloader=sft_dataloader,
         lat_config=lat_config,
-        project_dir=project_dir
+        project_dir=project_dir,
     )
 
     # Attach callbacks to log all reported metrics to wandb each epoch
@@ -361,20 +416,22 @@ def main():
         except Exception:
             # If define_metric fails (no active run), ignore — trainer.train will init W&B
             pass
-        if False: #Disable evaluation before training (epoch 0)
+        if False:  # Disable evaluation before training (epoch 0)
             if trainer.checkpoint_dir is None:
                 harmbench_cache_dir = "cache/harmbench_cache_0"
             else:
-                harmbench_cache_dir = trainer.checkpoint_dir+"/harmbench_cache_0"
-            harmbench_logs, utility_logs = evaluate_model(model=trainer.model,
-                                                        tokenizer=tokenizer,
-                                                        model_type=model_type,
-                                                        cache_dir=harmbench_cache_dir,
-                                                        cls=cls,
-                                                        cls_tokenizer=cls_tokenizer)
+                harmbench_cache_dir = trainer.checkpoint_dir + "/harmbench_cache_0"
+            harmbench_logs, utility_logs = evaluate_model(
+                model=trainer.model,
+                tokenizer=tokenizer,
+                model_type=model_type,
+                cache_dir=harmbench_cache_dir,
+                cls=cls,
+                cls_tokenizer=cls_tokenizer,
+            )
             wandb.log(harmbench_logs, step=0)
             wandb.log(utility_logs, step=0)
-        wandb.log({'epoch': 0}, step=0)
+        wandb.log({"epoch": 0}, step=0)
 
     def post_adv_callback(losses, epoch):
         if losses is None:
@@ -383,10 +440,10 @@ def main():
         for k, v in losses.items():
             log[k] = _to_number(v)
         if epoch is not None:
-            log["epoch"] = int(epoch)+1  # epoch is 0-indexed internally
+            log["epoch"] = int(epoch) + 1  # epoch is 0-indexed internally
         # Log with explicit step for consistent x-axis
         if epoch is not None:
-            wandb.log(log, step=int(epoch)+1)
+            wandb.log(log, step=int(epoch) + 1)
 
     def post_def_callback(losses, epoch):
         if losses is None:
@@ -394,21 +451,25 @@ def main():
         log = {}
         for k, v in losses.items():
             log[k] = _to_number(v)
-        log["epoch"] = int(epoch)+1  # epoch is 0-indexed internally
-        if evaluate and ((epoch+1) % eval_freq == 0):
+        log["epoch"] = int(epoch) + 1  # epoch is 0-indexed internally
+        if evaluate and ((epoch + 1) % eval_freq == 0):
             if trainer.checkpoint_dir is None:
-                harmbench_cache_dir = "cache/harmbench_cache"+str(int(epoch)+1)
+                harmbench_cache_dir = "cache/harmbench_cache" + str(int(epoch) + 1)
             else:
-                harmbench_cache_dir = trainer.checkpoint_dir+"/harmbench_cache_"+str(int(epoch)+1)
-            harmbench_logs, utility_logs = evaluate_model(model=trainer.model,
-                                                        tokenizer=tokenizer,
-                                                        model_type=model_type,
-                                                        cache_dir=harmbench_cache_dir,
-                                                        cls=cls,
-                                                        cls_tokenizer=cls_tokenizer)
-            wandb.log(harmbench_logs, step=int(epoch)+1)
-            wandb.log(utility_logs, step=int(epoch)+1)
-        wandb.log(log, step=int(epoch)+1)
+                harmbench_cache_dir = (
+                    trainer.checkpoint_dir + "/harmbench_cache_" + str(int(epoch) + 1)
+                )
+            harmbench_logs, utility_logs = evaluate_model(
+                model=trainer.model,
+                tokenizer=tokenizer,
+                model_type=model_type,
+                cache_dir=harmbench_cache_dir,
+                cls=cls,
+                cls_tokenizer=cls_tokenizer,
+            )
+            wandb.log(harmbench_logs, step=int(epoch) + 1)
+            wandb.log(utility_logs, step=int(epoch) + 1)
+        wandb.log(log, step=int(epoch) + 1)
 
     trainer.init_callback = _init_define_metrics
     trainer.post_adv_callback = post_adv_callback
@@ -428,11 +489,16 @@ def main():
     if wandb_offline:
         additional_wandb_kwargs["mode"] = "offline"
 
-    with open(project_dir+'/parameters.json', 'w', encoding='utf-8') as f:
+    with open(project_dir + "/parameters.json", "w", encoding="utf-8") as f:
         json.dump(additional_wandb_kwargs, f, ensure_ascii=False, indent=2)
     print("Starting LAT training...")
-    trainer.train(project_name=project_name, name=timestamp, additional_wandb_kwargs=additional_wandb_kwargs)
+    trainer.train(
+        project_name=project_name,
+        name=timestamp,
+        additional_wandb_kwargs=additional_wandb_kwargs,
+    )
     trainer.model.save_pretrained(project_dir)
+
 
 if __name__ == "__main__":
     main()
