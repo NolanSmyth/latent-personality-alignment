@@ -3,6 +3,8 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=64G
 #SBATCH --time=0-4:00:00
+#SBATCH --output=logs/slurm/%j-%x.out
+#SBATCH --error=logs/slurm/%j-%x.err
 
 MODEL=${1}
 PROJECT_NAME=${2}

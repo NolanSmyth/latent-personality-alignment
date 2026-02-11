@@ -17,6 +17,7 @@ from .lat_datasets import (
     LatentAdversarialTrainingDataCollator,
 )
 from .lat_methods import ProjectedGradLAT
+from .paths import get_model_path
 
 
 @contextmanager
@@ -90,33 +91,36 @@ def evaluate_model(model, tokenizer, model_type, cls, cls_tokenizer, cache_dir):
 
 
 def load_model(model_name):
+    model_path = get_model_path(model_name)
     model_dtype = torch.bfloat16
 
-    print(f"Loading model {model_name}...")
+    print(f"Loading model {model_name} from {model_path}...")
     model = AutoModelForCausalLM.from_pretrained(
-        model_name, torch_dtype=model_dtype, device_map="cuda"
+        model_path, torch_dtype=model_dtype, device_map="cuda"
     )
     print("Model loaded.")
 
     print("Loading tokenizer...")
     if "Llama-2" in model_name:
         model_type = "llama2"
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
         tokenizer.pad_token_id = tokenizer.eos_token_id
         tokenizer.padding_side = "left"
     elif "Llama-3" in model_name:
         model_type = "llama3"
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
         tokenizer.pad_token_id = tokenizer.eos_token_id
         tokenizer.padding_side = "left"
     elif "zephyr" in model_name or "mistral" in model_name:
         model_type = "zephyr"
-        tokenizer = AutoTokenizer.from_pretrained("HuggingFaceH4/zephyr-7b-beta")
+        tokenizer = AutoTokenizer.from_pretrained(
+            get_model_path("HuggingFaceH4/zephyr-7b-beta")
+        )
         tokenizer.pad_token_id = tokenizer.unk_token_id
         tokenizer.padding_side = "left"
     elif "Qwen" in model_name:
         model_type = "qwen3"
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_path)
         tokenizer.pad_token_id = tokenizer.eos_token_id
         tokenizer.padding_side = "left"
     else:
@@ -334,7 +338,7 @@ def main():
         print("No system prompt path provided, using empty system prompt.")
         system_prompt = ""
 
-    model, tokenizer, model_type = load_model(model_name=model_name)
+    model, tokenizer, model_type = load_model(model_name)
 
     print("Loading data...")
     lat_dataloader, sft_dataloader = load_data(
@@ -364,13 +368,12 @@ def main():
     if evaluate:
         print("Loading ais/HarmBench-Llama-2-13b-cls from huggingface")
         try:
-            # if that fails, load from huggingface
+            cls_path = get_model_path("cais/HarmBench-Llama-2-13b-cls")
             cls = AutoModelForCausalLM.from_pretrained(
-                "cais/HarmBench-Llama-2-13b-cls", dtype=torch.bfloat16, device_map="cpu"
+                cls_path, torch_dtype=torch.bfloat16, device_map="cpu"
             )
-            cls_tokenizer = AutoTokenizer.from_pretrained(
-                "meta-llama/Llama-2-7b-chat-hf"
-            )
+            cls_tok_path = get_model_path("meta-llama/Llama-2-7b-chat-hf")
+            cls_tokenizer = AutoTokenizer.from_pretrained(cls_tok_path)
             cls_tokenizer.pad_token_id = cls_tokenizer.unk_token_id
             cls_tokenizer.padding_side = "left"
             print("HarmBench classifier loaded.")

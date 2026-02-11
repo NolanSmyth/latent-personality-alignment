@@ -49,7 +49,7 @@ time python -m latent_at.lat_training_no_sft \
 
 
 for epoch in {30..30..10}; do
-  sbatch --job-name=eval-${MODEL}-${DATASET} --output=slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out launch_evaluation.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ${epoch}
+  sbatch --job-name=eval-${MODEL}-${DATASET} --output=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_evaluation.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ${epoch}
 done
 
-sbatch --job-name=lm-eval-${MODEL}-${DATASET} --output=slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out launch_lm_eval.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} 30
+sbatch --job-name=lm-eval-${MODEL}-${DATASET} --output=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_lm_eval.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} 30
