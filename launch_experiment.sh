@@ -1,24 +1,21 @@
 #!/bin/bash
-#SBATCH --gres=gpu:l40s:1
-#SBATCH --cpus-per-task=32
-#SBATCH --mem=64G
+#SBATCH --gres=gpu:h100_3g.40gb
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=48G
 #SBATCH --time=0-0:45:00
+#SBATCH --account=rrg-lplevass
+#SBATCH --job-name=lpa-experiment
+#SBATCH --output=logs/slurm/experiment_%j.out
+#SBATCH --error=logs/slurm/experiment_%j.err
 
-module load python cuda cudnn gcc arrow
+module load cuda httpproxy
 
-python -m venv $SLURM_TMPDIR/env
-source $SLURM_TMPDIR/env/bin/activate
-pip install --no-index --upgrade pip
+export WANDB_MODE=offline
+cd /home/nsmyth/links/projects/def-hezaveh/nsmyth/latent-personality-alignment
+source .venv/bin/activate
 
-cd ~/scratch/latent-personality-alignment
-pip install --no-index -r requirements.txt
-pip install fastchat
-
-#git clone https://github.com/magikarp01/tasks.git
-
-export HF_HOME=~/scratch/hf_home
+export HF_HUB_OFFLINE=1
 export PYTHONBREAKPOINT=0
-#export WANDB_MODE=disabled
 
 
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S-%6N")

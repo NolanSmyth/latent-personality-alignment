@@ -17,6 +17,11 @@ def main():
     )
     parser.add_argument("--run_id", type=str, required=True)
     parser.add_argument("--epoch", type=str, default=None)
+    parser.add_argument(
+        "--base_model",
+        action="store_true",
+        help="Evaluate the base model without loading a LoRA adapter",
+    )
 
     args = parser.parse_args()
 
@@ -24,6 +29,7 @@ def main():
     model_name = args.model_name
     run_id = args.run_id
     epoch = args.epoch
+    base_model_only = args.base_model
     project_path = "cache/" + project_name + "_" + run_id
 
     if epoch is not None:
@@ -66,7 +72,11 @@ def main():
         raise Exception("Unsupported model type.")
     print("Tokenizer loaded.")
 
-    model = PeftModel.from_pretrained(base_model, project_path, device_map="auto")
+    if base_model_only:
+        model = base_model
+        print("Evaluating base model (no adapter).")
+    else:
+        model = PeftModel.from_pretrained(base_model, project_path, device_map="auto")
 
     print("Running HarmBench evaluations...")
     model.eval()
