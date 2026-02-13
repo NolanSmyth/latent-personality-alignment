@@ -224,7 +224,6 @@ def get_trainer(
         }  # SFT disabled (was 1.5)
         inner_learning_rate = 5e-2
         outer_learning_rate = 2e-5
-        epsilon = 6.0
         add_completions_pgd = False
     elif model_type == "llama3":  # use llama3-8b
         adv_loss_coefs = {
@@ -238,7 +237,6 @@ def get_trainer(
         }  # SFT and KL disabled
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
-        epsilon = 6.0
         add_completions_pgd = True
     elif model_type == "qwen3":  # use qwen3-8b
         adv_loss_coefs = {
@@ -252,7 +250,6 @@ def get_trainer(
         }  # SFT and KL disabled
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
-        epsilon = 6.0
         add_completions_pgd = True
 
     pgd_trainer = ProjectedGradLAT(
@@ -268,7 +265,7 @@ def get_trainer(
         model_layers=list(
             range(0, model.config.num_hidden_layers)
         ),  # model layers to train
-        epsilon=epsilon,  # attack l2 constraint
+        epsilon=lat_config["epsilon"],  # attack l2 constraint
         inner_learning_rate=inner_learning_rate,  # adversary lr
         outer_learning_rate=outer_learning_rate,  # model lr
         model_iterations_per_step=lat_config[

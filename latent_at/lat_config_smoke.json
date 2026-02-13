@@ -5,5 +5,6 @@
   "max_batch_per_acc": 1,
   "l2_regularization": 0,
   "reinitialize_dev_optim": true,
-  "N_checkpoints": 1
+  "N_checkpoints": 1,
+  "epsilon": 6.0
 }
