@@ -28,7 +28,7 @@ def main():
     project_name = args.project_name
     model_name = args.model_name
     run_id = args.run_id
-    epoch = args.epoch
+    epoch = args.epoch if args.epoch else None  # treat empty string as None
     base_model_only = args.base_model
     project_path = "cache/" + project_name + "_" + run_id
 
@@ -76,6 +76,18 @@ def main():
         model = base_model
         print("Evaluating base model (no adapter).")
     else:
+        if not os.path.isdir(project_path):
+            raise FileNotFoundError(
+                f"Checkpoint directory not found: {project_path}\n"
+                f"Training may not have completed or saved checkpoints yet."
+            )
+        adapter_config = os.path.join(project_path, "adapter_config.json")
+        if not os.path.isfile(adapter_config):
+            raise FileNotFoundError(
+                f"No adapter_config.json in {project_path}\n"
+                f"This directory exists but does not contain a valid LoRA adapter."
+            )
+        print(f"Loading LoRA adapter from {project_path}...")
         model = PeftModel.from_pretrained(base_model, project_path, device_map="auto")
 
     print("Running HarmBench evaluations...")

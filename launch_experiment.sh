@@ -2,7 +2,7 @@
 #SBATCH --gres=gpu:h100_3g.40gb
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
-#SBATCH --time=0-0:45:00
+#SBATCH --time=0-1:30:00
 #SBATCH --account=rrg-lplevass
 #SBATCH --job-name=lpa-experiment
 #SBATCH --output=logs/slurm/experiment_%j.out
@@ -45,8 +45,9 @@ time python -m latent_at.lat_training_no_sft \
     # --eval --eval_freq 2
 
 
-for epoch in {30..30..10}; do
-  sbatch --job-name=eval-${MODEL}-${DATASET} --output=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_evaluation.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ${epoch}
-done
+# Evaluate the final model (saved at project root, not in checkpoint subdir)
+sbatch --job-name=eval-${MODEL}-${DATASET} --output=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_evaluation.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ""
 
-sbatch --job-name=lm-eval-${MODEL}-${DATASET} --output=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_lm_eval.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} 30
+# Run lm_eval on the final model
+# NUM_STEPS=$(python -c "import json; print(json.load(open('latent_at/lat_config.json'))['num_steps'])")
+# sbatch --job-name=lm-eval-${MODEL}-${DATASET} --output=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_lm_eval.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ${NUM_STEPS}

@@ -2,7 +2,7 @@
 #SBATCH --gres=gpu:h100
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
-#SBATCH --time=0-0:45:00
+#SBATCH --time=0-1:00:00
 #SBATCH --account=rrg-lplevass
 #SBATCH --job-name=lpa-evaluation
 #SBATCH --output=logs/slurm/evaluation_%j.out
@@ -34,10 +34,15 @@ export PYTHONBREAKPOINT=0
 # NOTE: Eval datasets must be pre-cached before running offline.
 # Run on a login node first:  python cache_eval_datasets.py
 
+EPOCH_ARG=""
+if [ -n "${EPOCH}" ]; then
+    EPOCH_ARG="--epoch ${EPOCH}"
+fi
+
 time python -m eval \
     --model_name ${MODEL} \
     --project_name ${PROJECT_NAME} \
     --run_id ${TIMESTAMP} \
-    --epoch ${EPOCH} \
+    ${EPOCH_ARG} \
     ${EXTRA_ARGS}
 

@@ -27,7 +27,7 @@ source .venv/bin/activate
 export HF_HUB_OFFLINE=1
 export PYTHONBREAKPOINT=0
 
-time lm_eval \
+time python -m lm_eval \
     --model hf \
     --model_args pretrained=${MODEL},peft=cache/${PROJECT_NAME}_${TIMESTAMP}/checkpoint_${EPOCH}  \
     --tasks mmlu,gsm8k,truthfulqa,super-glue-lm-eval-v1,bigbench_multiple_choice_b \

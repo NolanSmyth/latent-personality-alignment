@@ -219,6 +219,7 @@ def get_trainer(
         def_loss_coefs = {
             "toward": 0.5,
             "away": 0.5,
+            "sft": 0,
         }  # SFT disabled (was 1.5)
         inner_learning_rate = 5e-2
         outer_learning_rate = 2e-5
@@ -232,7 +233,8 @@ def get_trainer(
         def_loss_coefs = {
             "toward": 0.5,
             "away": 0.5,
-        }  # KL disabled (was 0.1)
+            "sft": 0,
+        }  # SFT and KL disabled
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
         epsilon = 6.0
@@ -245,7 +247,8 @@ def get_trainer(
         def_loss_coefs = {
             "toward": 0.5,
             "away": 0.5,
-        }  # KL disabled (was 0.1)
+            "sft": 0,
+        }  # SFT and KL disabled
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
         epsilon = 6.0
@@ -254,7 +257,7 @@ def get_trainer(
     pgd_trainer = ProjectedGradLAT(
         model=model,  # model
         dataloader=lat_dataloader,  # dataloader for lat
-        sft_dataloader=sft_dataloader,  # dataloader for supervised finetuning
+        sft_dataloader=None,  # SFT disabled in no_sft variant
         adv_loss_coefs=adv_loss_coefs,  # adversary's loss coefs
         def_loss_coefs=def_loss_coefs,  # model's loss coefs
         pgd_layers=["embedding", 8, 16, 24, 30],  # what layers to attack
@@ -310,7 +313,8 @@ def main():
     parser.add_argument(
         "--lat_config_path",
         type=str,
-        default=os.path.join(os.path.dirname(__file__), "lat_config.json"),
+        # default=os.path.join(os.path.dirname(__file__), "lat_config.json"),
+        default=os.path.join(os.path.dirname(__file__), "lat_config_fewer_steps.json"),
     )
     parser.add_argument("--wandb-offline", action="store_true")
     parser.add_argument("--timestamp", type=str)
