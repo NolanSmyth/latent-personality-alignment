@@ -158,7 +158,96 @@ MMLU: 0.0, HellaSwag: 0.0, Winogrande: 0.0, SciQ: 0.0, Lambada: 0.0
 - [ ] Confirm evaluation metrics are valid (check evaluation script and logs)
 - [ ] Compare IPIP-14 run to IPIP-08 to understand differences in utility impact
 - [ ] Re-run utility benchmarks with debug logging if metrics remain 0.0
+- currently rerunning with model_iterations_per_step": 1, to hopefully reduce "overfitting" to just responding "I do not agree with this statement." to all prompts
+- Need to add utility benchmarks to cache? Right now I don't think they're being saved.
 
+## Experiment 4: LPA Evaluation (IPIP-14, fewer steps)
+
+**Run ID**: lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503  
+**Date**: 2026-02-13  
+**Purpose**: Evaluate Latent Personality Alignment using the IPIP-14 dataset variant with `model_iterations_per_step: 1` (fewer steps)
+**Evaluation Log**: [logs/slurm/6887499-eval-QwenQwen3-8B-IPIP-14-bs4.out](logs/slurm/6887499-eval-QwenQwen3-8B-IPIP-14-bs4.out)
+
+### Configuration
+- **Model**: Qwen/Qwen3-8B
+- **Project Name**: lpa-regular-config_IPIP-14_fewer_steps
+- **Adapter Loaded**: cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503/checkpoint_200
+- **System Prompt**: `system_prompt/minimal.txt`
+
+### Results
+
+#### HarmBench Attack Success Rate (ASR)
+All attack methods reported ASR = 0.0 (DirectRequest, GCG, AutoDAN, AutoPrompt, PAIR, TAP, clean)
+
+#### Utility Metrics (accuracy)
+- MMLU: 2.0%
+- HellaSwag: 0.0%
+- Winogrande: 0.0%
+- SciQ: 26.9%
+- Lambada: 18.6%
+
+### Notes
+- Adapter and evaluation show near-perfect safety (ASR = 0.0) but substantial utility collapse on most benchmarks.
+- The model exhibits a pathological refusal pattern (dominant response: "I do not agree with this statement.").
+- This run used `model_iterations_per_step: 1` (fewer steps) and still experienced collapse.
+
+### Next Steps
+- [ ] Confirm evaluation metrics and inspect the evaluation script for issues
+- [ ] Compare response distributions across checkpoints to identify when collapse emerges
+- [ ] Evaluate with small SFT recovery or utility-preservation losses
+
+
+## Experiment 5: Response Distribution Analysis — Trained vs Base
+
+**Date**: 2026-02-13  
+**Purpose**: Diagnose why the trained model gets 0% on all utility benchmarks by analyzing the distribution of raw model responses. Compare to base model to quantify the pathological "I do not agree with this statement" refusal pattern.  
+**Script**: `diagnostics/plot_response_distribution.py`  
+**Figures**: `diagnostics/figures/`
+
+### Configuration
+- **Trained Model**: `cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503/eval/`
+- **Base Model**: `cache/base-eval_baseline/checkpoint_0/eval/` (SLURM job 6894490)
+
+### Key Findings
+
+#### Trained Model (LPA — IPIP-14, fewer steps)
+The model has collapsed to a single refusal response pattern:
+
+| Benchmark | Accuracy | Dominant Response | Notes |
+|-----------|----------|-------------------|-------|
+| HellaSwag | 0.0% | "I..." (100/100) | 100% pathological |
+| Winogrande | 0.0% | "I..." (100/100) | 100% pathological |
+| MMLU | 2.0% | "I..." (56), digit (27), A (12) | Mostly pathological |
+| SciQ | 26.9% | A (623), digit (152), "I..." (86) | Partially functional |
+| Lambada | 18.6% | other word (969), "I do..." (25) | Mostly functional but low accuracy |
+
+On HarmBench: **0% ASR across all 7 attack methods** — every response is "I do not agree with this statement."
+
+#### Base Model (Qwen3-8B)
+| Benchmark | Accuracy | Response Distribution |
+|-----------|----------|----------------------|
+| HellaSwag | 69.0% | D:29, C:29, A:16, B:16, other:10 |
+| MMLU | 71.0% | C:34, A:25, B:18, D:17, other:5 |
+| SciQ | 94.0% | C:255, A:251, D:239, B:229, other:26 |
+| Winogrande | 18.0% | B:54, A:37, other:9 |
+| Lambada | 64.2% | other word:998 |
+
+On HarmBench: ASR ranges 35%–85% (no safety alignment).
+
+### Analysis
+- The LPA training has caused **complete utility collapse** on HellaSwag and Winogrande (100% "I..." responses)
+- MMLU and SciQ are partially functional, suggesting the model can sometimes parse MC questions but defaults to refusal
+- The model has learned a degenerate policy: respond "I do not agree with this statement" to everything
+- This is likely caused by the model learning that the first generated token should be "I" (from the personality refusal pattern) regardless of context
+- The `model_iterations_per_step: 1` (fewer steps) config didn't prevent the collapse
+
+### Next Steps
+- [ ] Investigate at what training step the collapse occurs (log response distribution over training)
+- [ ] Try much lower learning rate or fewer total steps to find the sweet spot before collapse
+- [ ] Consider adding a utility-preservation loss (SFT on benign data) to prevent collapse
+- [ ] Check if the eval prompt format (with chat template) is contributing — the model may be treating MC questions as harmful requests because of the chat template
+
+---
 
 ## Template for Future Experiments
 

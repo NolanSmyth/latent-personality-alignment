@@ -83,6 +83,7 @@ def evaluate_model(model, tokenizer, model_type, cls, cls_tokenizer, cache_dir):
                 tokenizer=tokenizer,
                 model_type=model_type,
                 evals_to_include=["MMLU", "HellaSwag", "Winogrande", "SciQ", "Lambada"],
+                cache_dir=cache_dir,
             )
             utility_logs = {f"utility/{k}": v for k, v in utility_acc.items()}
     torch.cuda.empty_cache()

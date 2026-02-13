@@ -39,7 +39,7 @@ time python -m latent_at.lat_training_no_sft \
     --cache_dir cache \
     --system_prompt_path ${SYSTEM_PROMPT} \
     --project_name ${PROJECT_NAME} \
-    --lat_config_path latent_at/lat_config.json \
+    --lat_config_path latent_at/lat_config_fewer_steps.json \
     --batch_size ${BATCH_SIZE} \
     --timestamp ${TIMESTAMP} \
     # --eval --eval_freq 2

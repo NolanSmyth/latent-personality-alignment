@@ -111,6 +111,7 @@ def main():
             tokenizer=tokenizer,
             model_type=model_type,
             evals_to_include=["MMLU", "HellaSwag", "Winogrande", "SciQ", "Lambada"],
+            cache_dir=project_path + "/eval",
         )
         utility_logs = {f"utility/{k}": v for k, v in utility_acc.items()}
 
