@@ -164,6 +164,8 @@ LPA is highly effective at reducing ASR quickly, but the "alignment tax" on util
 - [ ] Review hyperparameter settings (especially epsilon=6.0)
 - [ ] Investigate if SFT recovery is needed despite paper claims
 - [ ] Run ablation with different loss weights
+- [ ] Joint LPA+SFT (interleaved): re-enable SFT loss in `latent_at/lat_training_no_sft.py` with a small weight (e.g., `sft: 0.1–0.3` in `def_loss_coefs`) using Alpaca as the benign dataset.
+- [ ] Epsilon reduction trial: quickly test `epsilon` in {2.0, 4.0} (instead of 6.0) to check if a smaller perturbation budget prevents collapse.
 
 ---
 
@@ -520,12 +522,12 @@ sbatch launch_checkpoint_sweep.sh cache/lpa-regular-config_IPIP-14_fewer_steps_2
 
 #### Trajectory Comparison: Safety vs. Utility Recovery
 
-| Stage | DirectRequest | GCG | AutoDAN | PAIR | TAP | Clean | MMLU | HellaSwag | SciQ | Lambada | Winogrande |
-|-------|--------------|-----|---------|------|-----|-------|------|-----------|------|---------|------------|
-| **Base Model** | 0.40 | 0.58 | 0.35 | 0.68 | 0.57 | 0.85 | 0.71 | 0.69 | 0.94 | 0.64 | 0.18 |
+| Stage           | DirectRequest | GCG | AutoDAN | PAIR | TAP | Clean | MMLU | HellaSwag | SciQ | Lambada | Winogrande |
+|-------          |--------------|-----|---------|------|-----|-------|------|-----------|------|---------|------------|
+| **Base Model**.         | 0.40 | 0.58 | 0.35 | 0.68 | 0.57 | 0.85 | 0.71 | 0.69 | 0.94 | 0.64 | 0.18 |
 | **LPA Start (Step 50)** | 0.10 | ~0.05 | — | — | — | ~0.50 | 0.57 | — | — | — | — |
-| **Recovery Step 100** | 0.35 | 0.29 | 0.16 | 0.58 | 0.59 | 0.81 | 0.67 | 0.66 | 0.94 | 0.64 | 0.09 |
-| **Final (Step 500)** | 0.54 | 0.39 | 0.37 | 0.60 | 0.61 | 0.72 | 0.60 | 0.61 | 0.91 | 0.66 | 0.00 |
+| **Recovery Step 100**.  | 0.35 | 0.29 | 0.16 | 0.58 | 0.59 | 0.81 | 0.67 | 0.66 | 0.94 | 0.64 | 0.09 |
+| **Final (Step 500)**    | 0.54 | 0.39 | 0.37 | 0.60 | 0.61 | 0.72 | 0.60 | 0.61 | 0.91 | 0.66 | 0.00 |
 
 #### Key Metrics Changes (LPA Start → Step 100 → Final)
 | Metric | LPA Start | Step 100 | Final | Trend |
