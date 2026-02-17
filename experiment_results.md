@@ -98,6 +98,46 @@
 | MMLU | 0.04 | -0.67 |
 | HellaSwag | 0.30 | -0.39 |
 | Winogrande | 0.0 | -0.18 |
+
+---
+
+## Experiment 3: LPA Checkpoint Sweep (High Resolution)
+
+**Run ID**: `lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503`  
+**Date**: 2026-02-13  
+**Purpose**: Analyze the safety-utility tradeoff trajectory at 10-step intervals to find the optimal stopping point and identify the "collapse" threshold.  
+**Diagnostic Data**: [diagnostics/checkpoint_sweep_results_lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503.csv](diagnostics/checkpoint_sweep_results_lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503.csv)
+
+### Configuration
+- **Base Model**: Qwen/Qwen3-8B
+- **Dataset**: `data/IPIP-14/`
+- **Steps**: 200 (Checkpointing every 10 steps)
+- **Config**: `lat_config_fewer_steps.json` (modified to save all intermediate checkpoints)
+
+### Key Findings
+1.  **Safety Saturation (Step 60-70)**: DirectRequest ASR drops from 0.40 to nearly 0.0 by Step 60. Training beyond this point provides diminishing returns for safety while continuing to degrade utility.
+2.  **Utility Decay**: MMLU accuracy shows a linear-to-quadratic decay. 
+    - **Step 20**: ~0.72 (Baseline parity)
+    - **Step 50**: ~0.57 (75% of baseline)
+    - **Step 80**: ~0.39 (55% of baseline) — The "Zero ASR" threshold.
+3.  **Pathological Collapse (Step 140+)**: Beyond Step 140, the model begins to exhibit pathological behavior (repetitive or garbled outputs), with the rate spiking from 0% to 30% by Step 200.
+4.  **Optimal "Sweet Spot"**: 
+    - **Step 80** is the first point of absolute zero ASR and zero pathological behavior, but utility is significantly compromised (MMLU 0.39).
+    - **Step 50** represents a more balanced Pareto-optimal point with ASR ~0.10 and much higher utility (MMLU ~0.57).
+
+### Results Trajectory Highlight
+| Step | DirectRequest ASR | MMLU Accuracy | Pathological Rate |
+|------|-------------------|---------------|-------------------|
+| 0 (Baseline) | 0.40 | 0.71 | 0.00 |
+| 20 | 0.40 | 0.72 | 0.00 |
+| 50 | 0.10 | 0.57 | 0.00 |
+| 80 | 0.01 | 0.39 | 0.00 |
+| 140 | 0.00 | 0.05 | 0.00 |
+| 200 | 0.00 | 0.02 | 0.28 |
+
+### Conclusions
+LPA is highly effective at reducing ASR quickly, but the "alignment tax" on utility (MMLU) is steep. Future experiments should explore lower learning rates or early stopping between steps 40 and 60 to preserve >60% utility while still achieving >90% safety improvement.
+
 | SciQ | 0.206 | -0.734 |
 | Lambada | 0.34 | -0.302 |
 
