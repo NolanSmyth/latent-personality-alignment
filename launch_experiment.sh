@@ -48,6 +48,7 @@ time python -m latent_at.lat_training_no_sft \
 # Evaluate the final model (saved at project root, not in checkpoint subdir)
 sbatch --job-name=eval-${MODEL}-${DATASET} --output=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_evaluation.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ""
 
-# Run lm_eval on the final model
-# NUM_STEPS=$(python -c "import json; print(json.load(open('latent_at/lat_config.json'))['num_steps'])")
-# sbatch --job-name=lm-eval-${MODEL}-${DATASET} --output=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_lm_eval.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ${NUM_STEPS}
+# Run lm_eval on the final model (use same config as training to get correct num_steps)
+LAT_CONFIG=latent_at/lat_config_fewer_steps.json
+NUM_STEPS=$(python -c "import json; print(json.load(open('${LAT_CONFIG}'))['num_steps'])")
+sbatch --job-name=lm-eval-${MODEL}-${DATASET} --output=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_lm_eval.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ${NUM_STEPS}

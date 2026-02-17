@@ -22,6 +22,35 @@ def main():
         action="store_true",
         help="Evaluate the base model without loading a LoRA adapter",
     )
+    parser.add_argument(
+        "--attacks",
+        type=str,
+        nargs="+",
+        default=None,
+        help="HarmBench attacks to run (e.g., DirectRequest GCG). If not specified, runs all.",
+    )
+    parser.add_argument(
+        "--evals",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Utility benchmarks to run (e.g., MMLU HellaSwag). If not specified, runs all.",
+    )
+    parser.add_argument(
+        "--skip_harmbench",
+        action="store_true",
+        help="Skip HarmBench evaluations entirely",
+    )
+    parser.add_argument(
+        "--skip_utility",
+        action="store_true",
+        help="Skip utility evaluations entirely",
+    )
+    parser.add_argument(
+        "--no_wandb",
+        action="store_true",
+        help="Skip logging to W&B",
+    )
 
     args = parser.parse_args()
 
@@ -90,48 +119,73 @@ def main():
         print(f"Loading LoRA adapter from {project_path}...")
         model = PeftModel.from_pretrained(base_model, project_path, device_map="auto")
 
-    print("Running HarmBench evaluations...")
     model.eval()
+    harmbench_logs = {}
+    utility_logs = {}
+
     with torch.no_grad():
-        harmbench_asr = run_attack_evals(
-            model=model,
-            tokenizer=tokenizer,
-            model_type=model_type,
-            pretrained_cls="llama",
-            do_sample=False,
-            move_cls_device=True,
-            move_model_device=True,
-            cache_dir=project_path + "/eval",
-        )
+        # Run HarmBench evaluations (unless skipped)
+        if not args.skip_harmbench:
+            print("Running HarmBench evaluations...")
+            harmbench_asr = run_attack_evals(
+                model=model,
+                tokenizer=tokenizer,
+                model_type=model_type,
+                pretrained_cls="llama",
+                do_sample=False,
+                move_cls_device=True,
+                move_model_device=True,
+                cache_dir=project_path + "/eval",
+                only_run_evals=args.attacks,  # Filter attacks if specified
+            )
+            harmbench_logs = {f"harmbench/{k}": v for k, v in harmbench_asr.items()}
 
-        harmbench_logs = {f"harmbench/{k}": v for k, v in harmbench_asr.items()}
-        print("Running utility evaluations...")
-        utility_acc = run_general_evals(
-            model=model,
-            tokenizer=tokenizer,
-            model_type=model_type,
-            evals_to_include=["MMLU", "HellaSwag", "Winogrande", "SciQ", "Lambada"],
-            cache_dir=project_path + "/eval",
-        )
-        utility_logs = {f"utility/{k}": v for k, v in utility_acc.items()}
+        # Run utility evaluations (unless skipped)
+        if not args.skip_utility:
+            print("Running utility evaluations...")
+            evals_to_run = (
+                args.evals
+                if args.evals
+                else ["MMLU", "HellaSwag", "Winogrande", "SciQ", "Lambada"]
+            )
+            utility_acc = run_general_evals(
+                model=model,
+                tokenizer=tokenizer,
+                model_type=model_type,
+                evals_to_include=evals_to_run,
+                cache_dir=project_path + "/eval",
+            )
+            utility_logs = {f"utility/{k}": v for k, v in utility_acc.items()}
 
-    wandb.init(project=project_name, id=run_id, resume="allow")
+    # Log to W&B (unless disabled)
+    if not args.no_wandb:
+        wandb.init(project=project_name, id=run_id, resume="allow")
 
-    if epoch is not None:
-        wandb.define_metric("epoch")
-        wandb.define_metric("harmbench/*", step_metric="epoch", step_sync=True)
-        wandb.define_metric("utility/*", step_metric="epoch", step_sync=True)
-        log_dict = {"epoch": int(epoch)}
+        if epoch is not None:
+            wandb.define_metric("epoch")
+            wandb.define_metric("harmbench/*", step_metric="epoch", step_sync=True)
+            wandb.define_metric("utility/*", step_metric="epoch", step_sync=True)
+            log_dict = {"epoch": int(epoch)}
+        else:
+            log_dict = {}
+            wandb.define_metric("harmbench/*")
+            wandb.define_metric("utility/*")
+
+        log_dict.update(harmbench_logs)
+        log_dict.update(utility_logs)
+
+        wandb.log(log_dict)
+        wandb.finish()
     else:
-        log_dict = {}
-        wandb.define_metric("harmbench/*")
-        wandb.define_metric("utility/*")
+        # Print results to stdout in JSON format for easy parsing
+        import json as json_module
 
-    log_dict.update(harmbench_logs)
-    log_dict.update(utility_logs)
-
-    wandb.log(log_dict)
-    wandb.finish()
+        results = {"epoch": int(epoch) if epoch else None}
+        results.update(harmbench_logs)
+        results.update(utility_logs)
+        print("\n=== EVALUATION RESULTS (JSON) ===")
+        print(json_module.dumps(results, indent=2))
+        print("=== END RESULTS ===\n")
 
 
 if __name__ == "__main__":

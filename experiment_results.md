@@ -249,6 +249,108 @@ On HarmBench: ASR ranges 35%–85% (no safety alignment).
 
 ---
 
+## Experiment 6: LPA Evaluation — IPIP-14 (fewer steps, new run)
+
+**Run ID**: 2026-02-16_13-03-56-659841
+**Date**: 2026-02-16
+**Purpose**: Re-evaluate `lpa-regular-config_IPIP-14_fewer_steps` adapter (new checkpoint/eval run)
+**Evaluation Log**: [logs/slurm/7008404-eval-QwenQwen3-8B-IPIP-14-bs4.out](logs/slurm/7008404-eval-QwenQwen3-8B-IPIP-14-bs4.out)
+
+### Configuration
+- **Model**: Qwen/Qwen3-8B
+- **Project Name**: lpa-regular-config_IPIP-14_fewer_steps
+- **Adapter Loaded**: cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-16_13-03-56-659841 (LoRA adapter loaded from this path in the Slurm log)
+- **System Prompt**: `system_prompt/minimal.txt`
+
+### Results
+
+#### HarmBench Attack Success Rate (ASR)
+| Attack Method | ASR |
+|---------------|-----|
+| DirectRequest | 0.47 |
+| GCG | 0.44 |
+| AutoDAN | 0.22 |
+| AutoPrompt | 0.37 |
+| PAIR | 0.61 |
+| TAP | 0.57 |
+| Clean | 0.88 |
+
+#### Utility Metrics (accuracy)
+| Benchmark | Score |
+|-----------|-------|
+| MMLU | 0.69 |
+| HellaSwag | 0.69 |
+| Winogrande | 0.16 |
+| SciQ | 0.944 |
+| Lambada | 0.631 |
+
+### Notes / Analysis
+- The Slurm log explicitly shows the LoRA adapter being loaded from `cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-16_13-03-56-659841`, confirming this evaluation used the trained adapter (i.e., the trained model).
+- HarmBench ASRs are non-zero across methods (0.22–0.61), indicating attacks still succeed to varying degrees on this adapter.
+- Utility metrics (MMLU, HellaSwag, SciQ, Lambada) are close to baseline levels for this run; no catastrophic collapse observed in this evaluation.
+- The key difference here is using 30 epochs, which is what was used in the paper based on when the direct response ASR reached approximately 0.
+
+### Next Steps
+- Compare these metrics to other IPIP-14 runs (different checkpoints) to understand stability.
+- If desired, add this run to aggregated plots and tracking dashboards.
+
+---
+
+## Experiment 7: Checkpoint Sweep (IPIP-14, fewer steps)
+
+**Run ID**: Sweep over checkpoints from 2026-02-13_13-35-34-111503  
+**Date**: 2026-02-17  
+**Purpose**: Find the "sweet spot" checkpoint where safety improves but utility hasn't collapsed  
+**SLURM Script**: `launch_checkpoint_sweep.sh`
+
+### Configuration
+- **Source Run**: `cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503`
+- **Model**: Qwen/Qwen3-8B
+- **Checkpoints Evaluated**: 10, 20, 30, ..., 200 (20 checkpoints total)
+- **Metrics**: 
+  - DirectRequest ASR only (not full HarmBench suite)
+  - MMLU accuracy only (not full utility suite)
+  - Pathological response rate (counting "I do not agree..." responses)
+
+### Scripts Created
+| Script | Purpose |
+|--------|---------|
+| [eval.py](eval.py) | Modified to support `--attacks`, `--evals`, `--no_wandb` flags |
+| [diagnostics/checkpoint_sweep.py](diagnostics/checkpoint_sweep.py) | Iterates over checkpoints, runs lightweight eval, collects results |
+| [diagnostics/plot_checkpoint_sweep.py](diagnostics/plot_checkpoint_sweep.py) | Generates 3 plots: combined metrics, trade-off, Pareto frontier |
+| [launch_checkpoint_sweep.sh](launch_checkpoint_sweep.sh) | SLURM submission script |
+
+### How to Run
+```bash
+# Submit the full sweep (12 hour job, h100 GPU)
+sbatch launch_checkpoint_sweep.sh
+
+# Or with custom parameters:
+sbatch launch_checkpoint_sweep.sh cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503 10 200 10
+```
+
+### Expected Outputs
+- **CSV**: `diagnostics/checkpoint_sweep_results_lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503.csv`
+- **Plots**: `diagnostics/figures/checkpoint_sweep_lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503/`
+  - `sweep_combined.png`: 3-panel plot (ASR, MMLU, pathological rate vs step)
+  - `sweep_tradeoff.png`: Dual y-axis trade-off visualization
+  - `sweep_frontier.png`: Pareto-style safety-utility frontier
+
+### Results
+*To be filled after sweep completes*
+
+| Step | ASR | MMLU | Pathological Rate |
+|------|-----|------|-------------------|
+| 10 | | | |
+| 20 | | | |
+| ... | | | |
+| 200 | | | |
+
+### Sweet Spot Recommendation
+*To be determined from sweep results*
+
+---
+
 ## Template for Future Experiments
 
 ```markdown
