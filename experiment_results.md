@@ -397,6 +397,65 @@ sbatch launch_checkpoint_sweep.sh cache/lpa-regular-config_IPIP-14_fewer_steps_2
 ## Experiment N: [Descriptive Name]
 
 **Run ID**: YYYY-MM-DD_HH-MM-SS-NNNNNN  
+## Experiment N: SFT Recovery on LPA Checkpoint 50
+
+**Date**: 2026-02-17 (planned)  
+**Purpose**: Test whether supervised fine-tuning on benign data (Alpaca) can restore utility (MMLU ~57% → ~71% baseline) while maintaining safety gains from LPA training (~10% ASR). This directly tests the fragility of personality alignment to post-hoc fine-tuning.  
+**Training Log**: `logs/slurm/sft_recovery_*.out`  
+**Evaluation Log**: `logs/slurm/*-eval-sft-recovery-*.out`
+
+### Training Configuration
+- **Base Model**: Qwen/Qwen3-8B
+- **Method**: SFT-only (no LAT/PGD/adversary — pure supervised fine-tuning)
+- **Training Script**: `latent_at/lat_sft_recovery.py`
+- **Starting Checkpoint**: `cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503/checkpoint_50` (Pareto-optimal: ~10% ASR, ~57% MMLU)
+- **Dataset**: `tatsu-lab/alpaca` (5K subset, seed=42)
+- **System Prompt**: `system_prompt/minimal.txt` (matches eval conditions)
+- **Project Name**: `lpa-sft-recovery_alpaca_checkpoint50`
+- **Batch Size**: 4
+- **Adapter**: Existing LoRA r=64 from LPA checkpoint (continued training)
+- **Adapter Output**: `cache/lpa-sft-recovery_alpaca_checkpoint50_<timestamp>/`
+
+### Hyperparameters
+- **Config**: `latent_at/sft_recovery_config.json`
+- `num_steps`: 500
+- `outer_learning_rate`: 2e-5
+- `max_batch_per_acc`: 2
+- `reinitialize_dev_optim`: false (persistent optimizer)
+- `N_checkpoints`: 10 (checkpoints every 50 steps)
+- `alpaca_subset_size`: 5000
+- `kl_coef`: 0.0 (no KL penalty — first run is SFT-only baseline)
+
+### Evaluation Configuration
+- **System Prompt**: `system_prompt/minimal.txt`
+- **Adapter Loaded**: Each checkpoint (50, 100, 150, ..., 500)
+- **Benchmarks**: HarmBench (all attacks) + MMLU, HellaSwag, Winogrande, SciQ, Lambada
+
+### Results
+[PENDING — run not yet submitted]
+
+### Analysis
+[PENDING]
+
+### Expected Outcomes
+1. **Best case**: MMLU recovers to ~65-70% while ASR stays <20% → SFT recovery is viable
+2. **Likely case**: MMLU partially recovers but ASR climbs to 25-35% → trade-off curve
+3. **Worst case**: ASR rapidly returns to baseline (~40%) → personality alignment is fragile to SFT (confirms LPA paper ablation Table 1)
+
+### Follow-up Experiments (if warranted)
+- Add KL penalty (`kl_coef: 0.01-0.05`) to regularize against LPA checkpoint
+- Try lower learning rate (`1e-5`) to slow safety erosion
+- Try higher-quality dataset (Open-Orca) instead of Alpaca
+
+### Pre-launch Checklist
+- [ ] Cache Alpaca dataset: `python cache_alpaca_dataset.py` (from login node)
+- [ ] Submit: `sbatch launch_sft_recovery.sh`
+- [ ] After training: `bash launch_sft_recovery_sweep.sh <MODEL> <PROJECT> <TIMESTAMP>`
+
+---
+
+## Template (Copy for New Experiments)
+
 **Date**: YYYY-MM-DD  
 **Purpose**: [What question/hypothesis is being tested]  
 **Training Log**: [path or wandb link]  
@@ -407,7 +466,6 @@ sbatch launch_checkpoint_sweep.sh cache/lpa-regular-config_IPIP-14_fewer_steps_2
 - **Method**: 
 - **Training Script**: 
 - **Dataset**: 
-  - Description of data and purpose
 - **System Prompt**: 
 - **Project Name**: 
 - **Batch Size**: 
@@ -416,7 +474,6 @@ sbatch launch_checkpoint_sweep.sh cache/lpa-regular-config_IPIP-14_fewer_steps_2
 
 ### Hyperparameters
 - List key hyperparameters that differ from defaults
-- Or reference config file if using standard settings
 
 ### Evaluation Configuration
 - **System Prompt**: 
@@ -434,3 +491,76 @@ sbatch launch_checkpoint_sweep.sh cache/lpa-regular-config_IPIP-14_fewer_steps_2
 ### Next Steps
 [Concrete action items]
 ```
+
+---
+
+## Experiment 5: SFT Recovery (Alpaca from LPA Step 50)
+
+**Run ID**: `lpa-sft-recovery_alpaca_checkpoint50_2026-02-17_13-52-29-711847`  
+**Date**: 2026-02-17  
+**Purpose**: Test whether supervised fine-tuning on benign data (Alpaca) can restore utility from an LPA-aligned checkpoint without catastrophically degrading safety.  
+**Training Log**: [logs/slurm/sft_recovery_*.out](logs/slurm/)  
+**Evaluation Logs**:
+- Step 100: [logs/slurm/7034873-eval-sft-recovery-step100.out](logs/slurm/7034873-eval-sft-recovery-step100.out)
+- Final (Step 500): [logs/slurm/7034878-eval-sft-recovery-final.out](logs/slurm/7034878-eval-sft-recovery-final.out)
+
+### Configuration
+- **Base Model**: Qwen/Qwen3-8B
+- **Starting Checkpoint**: `cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503/checkpoint_50`
+  - LPA-aligned model with DirectRequest ASR ~0.10, MMLU ~0.57
+- **SFT Dataset**: `tatsu-lab/alpaca` (5,000 samples)
+- **Training Script**: `latent_at/lat_sft_recovery.py`
+- **Training Steps**: 500
+- **Checkpointing**: Every 50 steps (10 total checkpoints)
+- **Learning Rate**: 2e-5
+- **Batch Size**: 4
+- **System Prompt**: `system_prompt/minimal.txt` (evaluation mode)
+
+### Results
+
+#### Trajectory Comparison: Safety vs. Utility Recovery
+
+| Stage | DirectRequest | GCG | AutoDAN | PAIR | TAP | Clean | MMLU | HellaSwag | SciQ | Lambada | Winogrande |
+|-------|--------------|-----|---------|------|-----|-------|------|-----------|------|---------|------------|
+| **Base Model** | 0.40 | 0.58 | 0.35 | 0.68 | 0.57 | 0.85 | 0.71 | 0.69 | 0.94 | 0.64 | 0.18 |
+| **LPA Start (Step 50)** | 0.10 | ~0.05 | — | — | — | ~0.50 | 0.57 | — | — | — | — |
+| **Recovery Step 100** | 0.35 | 0.29 | 0.16 | 0.58 | 0.59 | 0.81 | 0.67 | 0.66 | 0.94 | 0.64 | 0.09 |
+| **Final (Step 500)** | 0.54 | 0.39 | 0.37 | 0.60 | 0.61 | 0.72 | 0.60 | 0.61 | 0.91 | 0.66 | 0.00 |
+
+#### Key Metrics Changes (LPA Start → Step 100 → Final)
+| Metric | LPA Start | Step 100 | Final | Trend |
+|--------|-----------|----------|-------|-------|
+| DirectRequest ASR | 0.10 | 0.35 | 0.54 | 📈 Safety Erosion |
+| GCG ASR | ~0.05 | 0.29 | 0.39 | 📈 Safety Erosion |
+| MMLU Accuracy | 0.57 | 0.67 | 0.60 | 📈 then 📉 |
+| Clean ASR (Helpfulness) | ~0.50 | 0.81 | 0.72 | 📈 Restored |
+
+### Analysis
+
+1.  **Initial Recovery Success at Step 100**:
+    - Successfully recovered some utility (MMLU: 0.57 → 0.67, approaching baseline 0.71)
+    - Maintained some safety advantage over base model (GCG: 0.29 vs baseline 0.58)
+
+2.  **Catastrophic Safety Degradation by Step 500**:
+    - **DirectRequest ASR exceeded base model** (0.54 vs 0.40), suggesting SFT on Alpaca increases overall compliance to harmful requests
+    - GCG ASR deteriorated but remained below base model
+
+3.  **Utility Regression After Step 100**:
+    - MMLU **dropped** from 0.67 (Step 100) to 0.60 (Step 500)
+    - Indicates overfitting to Alpaca distribution or catastrophic forgetting of general knowledge?
+    - Winogrande collapsed entirely to 0.00 by Step 500
+    - Maybe want to add sft back to training loop with LPA to see if this helps.
+
+### Conclusions
+
+- **SFT Recovery is a Double-Edged Sword**: While it can restore utility and helpfulness, it "unlearns" safety alignment, particularly for direct harmful requests.
+- **Compliance Overgeneralization**: The model becomes **more** compliant than the base model, even to harmful requests, suggesting Alpaca-style SFT reduces the model's ability to discriminate between safe and unsafe instructions.
+- **Optimization-Based Attack Resistance**: GCG and AutoDAN ASRs remain lower than baseline even after 500 steps, suggesting latent-space adversarial training provides more persistent robustness against these attacks than against direct prompt-based attacks.
+
+### Open Questions
+
+2. **Can we interleave safety data during SFT to prevent alignment erosion?**
+4. **Would a different SFT dataset (e.g., less instruction-following focused) preserve safety better?**
+
+### Next Steps
+- [ ] Try to interleave SFT within the LPA training loop to see if it can preserve safety while improving utility.
