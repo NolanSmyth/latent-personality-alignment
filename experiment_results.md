@@ -2,6 +2,20 @@
 
 *This document tracks all training and evaluation experiments, including configuration details, purpose, and results.*
 
+## Experiments Summary
+
+| # | Date | Run ID | Purpose | Model | Dataset | Key Result |
+|---|------|--------|---------|-------|---------|------------|
+| 1 | 2026-02-12 | baseline | Baseline metrics | Qwen3-8B | - | ASR: 35-85%, MMLU: 71% |
+| 2 | 2026-02-12 | 15-10-35-567694 | LPA Training | Qwen3-8B | IPIP-08 | ASR: 0%, MMLU: 4% (collapse) |
+| 3 | 2026-02-13 | 13-35-34-111503 | Checkpoint sweep (200 steps) | Qwen3-8B | IPIP-14 | Optimal: Step 50 (~10% ASR, ~57% MMLU) |
+| 4 | 2026-02-13 | 11-00-18-529960 | LPA (IPIP-14) | Qwen3-8B | IPIP-14 | ASR: 0%, utility collapse |
+| 5 | 2026-02-13 | 13-35-34-111503 | LPA (fewer steps) | Qwen3-8B | IPIP-14 | ASR: 0%, MMLU: 2% (collapse) |
+| 6 | 2026-02-13 | - | Response analysis | Qwen3-8B | - | Diagnosed pathological pattern |
+| 7 | 2026-02-16 | 13-03-56-659841 | LPA (30 epochs) | Qwen3-8B | IPIP-14 | ASR: 22-88%, MMLU: 69% |
+| 8 | 2026-02-17 | 13-35-34-111503 | Checkpoint sweep analysis | Qwen3-8B | IPIP-14 | Visualizations & recommendations |
+| 9 | 2026-02-17 | 13-52-29-711847 | SFT Recovery from Step 50 | Qwen3-8B | Alpaca | Safety erosion confirmed (ASR: 0.10 → 0.54) |
+
 ---
 
 ## Experiment 1: Baseline Evaluation (Qwen3-8B)
@@ -169,7 +183,7 @@ LPA is highly effective at reducing ASR quickly, but the "alignment tax" on util
 
 ---
 
-## Experiment 3: LPA Evaluation (IPIP-14)
+## Experiment 4: LPA Evaluation (IPIP-14)
 
 **Run ID**: 2026-02-13_11-00-18-529960  
 **Date**: 2026-02-13  
@@ -203,7 +217,7 @@ MMLU: 0.0, HellaSwag: 0.0, Winogrande: 0.0, SciQ: 0.0, Lambada: 0.0
 - currently rerunning with model_iterations_per_step": 1, to hopefully reduce "overfitting" to just responding "I do not agree with this statement." to all prompts
 - Need to add utility benchmarks to cache? Right now I don't think they're being saved.
 
-## Experiment 4: LPA Evaluation (IPIP-14, fewer steps)
+## Experiment 5: LPA Evaluation (IPIP-14, fewer steps)
 
 **Run ID**: lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503  
 **Date**: 2026-02-13  
@@ -239,7 +253,7 @@ All attack methods reported ASR = 0.0 (DirectRequest, GCG, AutoDAN, AutoPrompt, 
 - [ ] Evaluate with small SFT recovery or utility-preservation losses
 
 
-## Experiment 5: Response Distribution Analysis — Trained vs Base
+## Experiment 6: Response Distribution Analysis — Trained vs Base
 
 **Date**: 2026-02-13  
 **Purpose**: Diagnose why the trained model gets 0% on all utility benchmarks by analyzing the distribution of raw model responses. Compare to base model to quantify the pathological "I do not agree with this statement" refusal pattern.  
@@ -291,7 +305,7 @@ On HarmBench: ASR ranges 35%–85% (no safety alignment).
 
 ---
 
-## Experiment 6: LPA Evaluation — IPIP-14 (fewer steps, new run)
+## Experiment 7: LPA Evaluation — IPIP-14 (fewer steps, new run)
 
 **Run ID**: 2026-02-16_13-03-56-659841
 **Date**: 2026-02-16
@@ -338,7 +352,7 @@ On HarmBench: ASR ranges 35%–85% (no safety alignment).
 
 ---
 
-## Experiment 7: Checkpoint Sweep (IPIP-14, fewer steps)
+## Experiment 8: Checkpoint Sweep (IPIP-14, fewer steps)
 
 **Run ID**: Sweep over checkpoints from 2026-02-13_13-35-34-111503  
 **Date**: 2026-02-17  
@@ -393,110 +407,7 @@ sbatch launch_checkpoint_sweep.sh cache/lpa-regular-config_IPIP-14_fewer_steps_2
 
 ---
 
-## Template for Future Experiments
-
-```markdown
-## Experiment N: [Descriptive Name]
-
-**Run ID**: YYYY-MM-DD_HH-MM-SS-NNNNNN  
-## Experiment N: SFT Recovery on LPA Checkpoint 50
-
-**Date**: 2026-02-17 (planned)  
-**Purpose**: Test whether supervised fine-tuning on benign data (Alpaca) can restore utility (MMLU ~57% → ~71% baseline) while maintaining safety gains from LPA training (~10% ASR). This directly tests the fragility of personality alignment to post-hoc fine-tuning.  
-**Training Log**: `logs/slurm/sft_recovery_*.out`  
-**Evaluation Log**: `logs/slurm/*-eval-sft-recovery-*.out`
-
-### Training Configuration
-- **Base Model**: Qwen/Qwen3-8B
-- **Method**: SFT-only (no LAT/PGD/adversary — pure supervised fine-tuning)
-- **Training Script**: `latent_at/lat_sft_recovery.py`
-- **Starting Checkpoint**: `cache/lpa-regular-config_IPIP-14_fewer_steps_2026-02-13_13-35-34-111503/checkpoint_50` (Pareto-optimal: ~10% ASR, ~57% MMLU)
-- **Dataset**: `tatsu-lab/alpaca` (5K subset, seed=42)
-- **System Prompt**: `system_prompt/minimal.txt` (matches eval conditions)
-- **Project Name**: `lpa-sft-recovery_alpaca_checkpoint50`
-- **Batch Size**: 4
-- **Adapter**: Existing LoRA r=64 from LPA checkpoint (continued training)
-- **Adapter Output**: `cache/lpa-sft-recovery_alpaca_checkpoint50_<timestamp>/`
-
-### Hyperparameters
-- **Config**: `latent_at/sft_recovery_config.json`
-- `num_steps`: 500
-- `outer_learning_rate`: 2e-5
-- `max_batch_per_acc`: 2
-- `reinitialize_dev_optim`: false (persistent optimizer)
-- `N_checkpoints`: 10 (checkpoints every 50 steps)
-- `alpaca_subset_size`: 5000
-- `kl_coef`: 0.0 (no KL penalty — first run is SFT-only baseline)
-
-### Evaluation Configuration
-- **System Prompt**: `system_prompt/minimal.txt`
-- **Adapter Loaded**: Each checkpoint (50, 100, 150, ..., 500)
-- **Benchmarks**: HarmBench (all attacks) + MMLU, HellaSwag, Winogrande, SciQ, Lambada
-
-### Results
-[PENDING — run not yet submitted]
-
-### Analysis
-[PENDING]
-
-### Expected Outcomes
-1. **Best case**: MMLU recovers to ~65-70% while ASR stays <20% → SFT recovery is viable
-2. **Likely case**: MMLU partially recovers but ASR climbs to 25-35% → trade-off curve
-3. **Worst case**: ASR rapidly returns to baseline (~40%) → personality alignment is fragile to SFT (confirms LPA paper ablation Table 1)
-
-### Follow-up Experiments (if warranted)
-- Add KL penalty (`kl_coef: 0.01-0.05`) to regularize against LPA checkpoint
-- Try lower learning rate (`1e-5`) to slow safety erosion
-- Try higher-quality dataset (Open-Orca) instead of Alpaca
-
-### Pre-launch Checklist
-- [ ] Cache Alpaca dataset: `python cache_alpaca_dataset.py` (from login node)
-- [ ] Submit: `sbatch launch_sft_recovery.sh`
-- [ ] After training: `bash launch_sft_recovery_sweep.sh <MODEL> <PROJECT> <TIMESTAMP>`
-
----
-
-## Template (Copy for New Experiments)
-
-**Date**: YYYY-MM-DD  
-**Purpose**: [What question/hypothesis is being tested]  
-**Training Log**: [path or wandb link]  
-**Evaluation Log**: [path]
-
-### Training Configuration
-- **Base Model**: 
-- **Method**: 
-- **Training Script**: 
-- **Dataset**: 
-- **System Prompt**: 
-- **Project Name**: 
-- **Batch Size**: 
-- **Adapter**: 
-- **Adapter Output**: 
-
-### Hyperparameters
-- List key hyperparameters that differ from defaults
-
-### Evaluation Configuration
-- **System Prompt**: 
-- **Adapter Loaded**: 
-
-### Results
-[Tables with ASR and utility metrics]
-
-### Analysis
-[Key findings, comparisons to baseline/other experiments]
-
-### Open Questions
-[Unresolved issues or follow-up needed]
-
-### Next Steps
-[Concrete action items]
-```
-
----
-
-## Experiment 5: SFT Recovery (Alpaca from LPA Step 50)
+## Experiment 9: SFT Recovery (Alpaca from LPA Step 50)
 
 **Run ID**: `lpa-sft-recovery_alpaca_checkpoint50_2026-02-17_13-52-29-711847`  
 **Date**: 2026-02-17  
@@ -566,3 +477,49 @@ sbatch launch_checkpoint_sweep.sh cache/lpa-regular-config_IPIP-14_fewer_steps_2
 
 ### Next Steps
 - [ ] Try to interleave SFT within the LPA training loop to see if it can preserve safety while improving utility.
+
+---
+
+## Experiment Template
+
+**Copy this template for new experiments:**
+
+```markdown
+## Experiment N: [Descriptive Name]
+
+**Run ID**: YYYY-MM-DD_HH-MM-SS-NNNNNN  
+**Date**: YYYY-MM-DD  
+**Purpose**: [What question/hypothesis is being tested]  
+**Training Log**: [path or wandb link]  
+**Evaluation Log**: [path]
+
+### Training Configuration
+- **Base Model**: 
+- **Method**: 
+- **Training Script**: 
+- **Dataset**: 
+- **System Prompt**: 
+- **Project Name**: 
+- **Batch Size**: 
+- **Adapter**: 
+- **Adapter Output**: 
+
+### Hyperparameters
+- List key hyperparameters that differ from defaults
+
+### Evaluation Configuration
+- **System Prompt**: 
+- **Adapter Loaded**: 
+
+### Results
+[Tables with ASR and utility metrics]
+
+### Analysis
+[Key findings, comparisons to baseline/other experiments]
+
+### Open Questions
+[Unresolved issues or follow-up needed]
+
+### Next Steps
+[Concrete action items]
+```
