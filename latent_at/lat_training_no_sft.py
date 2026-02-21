@@ -74,6 +74,7 @@ def evaluate_model(model, tokenizer, model_type, cls, cls_tokenizer, cache_dir):
                 verbose=True,
                 move_cls_device=True,
                 move_model_device=True,
+                only_run_evals=["DirectRequest"],
             )
 
             harmbench_logs = {f"harmbench/{k}": v for k, v in harmbench_asr.items()}
@@ -82,7 +83,7 @@ def evaluate_model(model, tokenizer, model_type, cls, cls_tokenizer, cache_dir):
                 model=model,
                 tokenizer=tokenizer,
                 model_type=model_type,
-                evals_to_include=["MMLU", "HellaSwag", "Winogrande", "SciQ", "Lambada"],
+                evals_to_include=["MMLU"],
                 cache_dir=cache_dir,
             )
             utility_logs = {f"utility/{k}": v for k, v in utility_acc.items()}

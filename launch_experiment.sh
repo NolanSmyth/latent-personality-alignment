@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --gres=gpu:h100_3g.40gb
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=2
 #SBATCH --mem=48G
 #SBATCH --time=0-1:30:00
 #SBATCH --account=rrg-lplevass
@@ -42,13 +42,13 @@ time python -m latent_at.lat_training_no_sft \
     --lat_config_path latent_at/lat_config_fewer_steps.json \
     --batch_size ${BATCH_SIZE} \
     --timestamp ${TIMESTAMP} \
-    # --eval --eval_freq 2
+    --eval --eval_freq 10
 
 
 # Evaluate the final model (saved at project root, not in checkpoint subdir)
 sbatch --job-name=eval-${MODEL}-${DATASET} --output=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_evaluation.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ""
 
-# Run lm_eval on the final model (use same config as training to get correct num_steps)
-LAT_CONFIG=latent_at/lat_config_fewer_steps.json
-NUM_STEPS=$(python -c "import json; print(json.load(open('${LAT_CONFIG}'))['num_steps'])")
-sbatch --job-name=lm-eval-${MODEL}-${DATASET} --output=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_lm_eval.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ${NUM_STEPS}
+# lm_eval disabled — use launch_lm_eval.sh manually when needed
+# LAT_CONFIG=latent_at/lat_config_fewer_steps.json
+# NUM_STEPS=$(python -c "import json; print(json.load(open('${LAT_CONFIG}'))['num_steps'])")
+# sbatch --job-name=lm-eval-${MODEL}-${DATASET} --output=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.out --error=logs/slurm/%j-lm-eval-${MODEL/\/}-${DATASET}-bs${BATCH_SIZE}.err launch_lm_eval.sh ${MODEL} ${PROJECT_NAME} ${TIMESTAMP} ${NUM_STEPS}

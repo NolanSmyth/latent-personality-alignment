@@ -27,7 +27,7 @@ PROJECT_WITH="lpa-with-sft"
 echo "Submitting: ${PROJECT_WITH}"
 JOB_WITH=$(sbatch --parsable \
     --job-name=${PROJECT_WITH} \
-    --gres=gpu:h100_3g.40gb \
+    --gres=gpu:h100 \
     --cpus-per-task=2 \
     --mem=48G \
     --time=0-2:00:00 \
@@ -65,7 +65,7 @@ PROJECT_WITHOUT="lpa-without-sft"
 echo "Submitting: ${PROJECT_WITHOUT}"
 JOB_WITHOUT=$(sbatch --parsable \
     --job-name=${PROJECT_WITHOUT} \
-    --gres=gpu:h100_3g.40gb \
+    --gres=gpu:h100 \
     --cpus-per-task=2 \
     --mem=48G \
     --time=0-2:00:00 \
