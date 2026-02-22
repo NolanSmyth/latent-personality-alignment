@@ -41,8 +41,7 @@ time python -m latent_at.lat_training_no_sft \
     --project_name ${PROJECT_NAME} \
     --lat_config_path latent_at/lat_config_fewer_steps.json \
     --batch_size ${BATCH_SIZE} \
-    --timestamp ${TIMESTAMP} \
-    --eval --eval_freq 10
+    --timestamp ${TIMESTAMP}
 
 
 # Evaluate the final model (saved at project root, not in checkpoint subdir)

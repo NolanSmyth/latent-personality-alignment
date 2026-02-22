@@ -17,8 +17,11 @@
 | 9 | 2026-02-17 | 13-52-29-711847 | SFT Recovery from Step 50 | Qwen3-8B | Alpaca | Safety erosion confirmed (ASR: 0.10 → 0.54) |
 | 10 | 2026-02-18 | 10-52-08-186615 | Interleaved LPA+SFT (30 steps) | Qwen3-8B | IPIP-14 + Alpaca | Weak safety (DR: 0.41), utility intact (MMLU: 0.70) |
 | 11 | 2026-02-18 | 10-52-08-186615 | LPA without SFT (30 steps) | Qwen3-8B | IPIP-14 | Weak safety (DR: 0.46), utility intact (MMLU: 0.70) |
-| 12 | 2026-02-21 | TBD (job 7227985) | All-positive overfitting check (IPIP-10) | Qwen3-8B | IPIP-10 | 🔄 Running |
-| 13 | 2026-02-21 | TBD (job 7227986) | Mixed overfitting + loss monitoring (IPIP-14 fresh) | Qwen3-8B | IPIP-14 | 🔄 Running |
+| 12 | 2026-02-21 | lpa-ipip10-allpositive_* (job 7228438) | All-positive overfitting check (IPIP-10) | Qwen3-8B | IPIP-10 | 🔄 Running (resubmitted; prev job 7227985 OOM'd at step 10 eval) |
+| 13 | 2026-02-21 | lpa-ipip14-mixed_* (job 7228439) | Mixed overfitting + loss monitoring (IPIP-14 fresh) | Qwen3-8B | IPIP-14 | 🔄 Running (resubmitted; prev job 7227986 OOM'd at step 10 eval) |
+| 14 | 2026-02-18 | 11-39-29-227649 | Interleaved LPA+SFT (100 steps) — checkpoint sweep | Qwen3-8B | IPIP-14 + Alpaca | Non-monotonic ASR (step 50 best: DR 0.26); utility stable throughout (MMLU 0.65) |
+| 15 | 2026-02-18 | 11-39-29-227649 | LPA without SFT (100 steps) — checkpoint sweep | Qwen3-8B | IPIP-14 | Monotonic safety+collapse: step 50 best (DR 0.15), step 100 total collapse (DR/clean=0.00, MMLU 0.40) |
+| 16 | 2026-02-21 | (diagnostic only) | Base model prior probe — IPIP-14 harmful_trait.csv, training template | Qwen3-8B base | IPIP-14 | Agree: 53.6% (15/28), Disagree: 2.6% (1/39); refusals dominate on negative items |
 
 
 *Experiments 1–9 details are in [docs/experiment_archive.md](docs/experiment_archive.md).*
@@ -176,6 +179,148 @@ The eval used the ROOT adapter directory (no `--epoch` argument passed to `eval.
 - [ ] Compare agree-item vs disagree-item accuracy (does the model distinguish valence?)
 - [ ] Compare against IPIP-10 checkpoint: does IPIP-14 checkpoint avoid the always-agree collapse?
 - [ ] Plot W&B loss terms (`adv_toward`, `adv_away`, `def_toward`, `def_away`) on shared axes
+
+---
+
+## Experiments 14 & 15: Interleaved LPA+SFT vs LPA-Only — 100-Step Checkpoint Sweep
+
+**Run ID**: 2026-02-18_11-39-29-227649 (shared timestamp — both jobs launched together)  
+**Date**: 2026-02-18  
+**Purpose**: Longer-run follow-up to Exps 10 & 11 (30 steps). Train for 100 steps and evaluate at checkpoints 50 and 100 to characterise how safety and utility evolve over training for interleaved-SFT vs pure-LAT. Addresses the open question from Exps 10/11 of whether the SFT advantage persists at longer training, and whether the no-SFT model eventually collapses.  
+**Eval Logs (step 50)**: [logs/slurm/evaluation_7079618.out](logs/slurm/evaluation_7079618.out) (with SFT), [logs/slurm/evaluation_7079621.out](logs/slurm/evaluation_7079621.out) (without SFT)  
+**Eval Logs (step 100)**: top-level `eval/` directory in each cache folder (no separate SLURM log)
+
+### Training Configuration
+
+| Setting | With SFT (Exp 14) | Without SFT (Exp 15) |
+|---------|------------------|---------------------|
+| Training Script | `latent_at/lat_training.py` | `latent_at/lat_training_no_sft.py` |
+| Project Name | `lpa-with-sft` | `lpa-without-sft` |
+| Cache Dir | `cache/lpa-with-sft_2026-02-18_11-39-29-227649/` | `cache/lpa-without-sft_2026-02-18_11-39-29-227649/` |
+| Harmful Dataset | `data/IPIP-14/harmful_trait.csv` (67 statements) | same |
+| Benign Dataset | `data/alpaca_sft/benign_alpaca.csv` (Alpaca) | `data/IPIP-14/benign_trait.csv` (unused) |
+| System Prompt | `system_prompt/alpha.txt` | same |
+| Batch Size | 4 | 4 |
+| SFT/KL losses | Enabled (sft=1.0) | Disabled |
+
+### Hyperparameters (`lat_config.json`)
+- **PGD Iterations**: 16
+- **Model Iterations per Step**: 1
+- **Training Steps**: 100
+- **Epsilon**: 6.0
+- **N Checkpoints saved**: 20 (every 5 steps)
+
+### Evaluation Configuration
+- **System Prompt**: `system_prompt/minimal.txt`
+- **Checkpoints Evaluated**: Step 50 (via `checkpoint_50/`) and Step 100 (final adapter, root `eval/`)
+
+### Results
+
+#### HarmBench Attack Success Rate (ASR)
+| Attack | Baseline | With SFT Step 50 | With SFT Step 100 | No SFT Step 50 | No SFT Step 100 |
+|--------|----------|-----------------|-------------------|----------------|------------------|
+| DirectRequest | 0.40 | **0.26** | 0.38 | **0.15** | 0.00 |
+| GCG | 0.58 | **0.21** | 0.31 | **0.09** | 0.00 |
+| AutoDAN | 0.35 | **0.05** | 0.35 | **0.00** | 0.00 |
+| AutoPrompt | 0.51 | **0.24** | 0.33 | **0.10** | 0.00 |
+| PAIR | 0.68 | **0.41** | 0.47 | **0.21** | 0.00 |
+| TAP | 0.57 | **0.42** | 0.52 | **0.19** | 0.00 |
+| Clean | 0.85 | 0.79 | 0.78 | 0.86 | 0.00 |
+
+#### Utility Metrics
+| Benchmark | Baseline | With SFT Step 50 | With SFT Step 100 | No SFT Step 50 | No SFT Step 100 |
+|-----------|----------|-----------------|-------------------|----------------|------------------|
+| MMLU | 0.71 | 0.65 | 0.65 | 0.62 | 0.40 |
+| HellaSwag | 0.69 | 0.67 | 0.64 | 0.64 | 0.19 |
+| Winogrande | 0.18 | 0.10 | 0.15 | 0.11 | 0.00 |
+| SciQ | 0.94 | 0.93 | 0.94 | 0.93 | 0.84 |
+| Lambada | 0.64 | 0.62 | 0.61 | 0.60 | 0.53 |
+
+### Analysis
+
+#### Key Finding: Non-Monotonic Safety with SFT; Monotonic Collapse without SFT
+
+The central observation from these runs is a stark qualitative difference in the training dynamics:
+
+1. **Without SFT — monotonic but collapses**: Safety improves monotonically from baseline → step 50 → step 100 (DR: 0.40 → 0.15 → 0.00). However, this zero-ASR at step 100 is not meaningful safety — it reflects **total model collapse**. Clean ASR falls to 0.00 (model refuses everything, including non-harmful prompts), MMLU drops to 0.40, HellaSwag to 0.19, Winogrande to 0.00. The model has lost coherent generation. Step 50 is the Pareto-optimal point for no-SFT training.
+
+2. **With SFT — non-monotonic but stable**: Safety improves from baseline → step 50, then *degrades* back at step 100 (DR: 0.40 → 0.26 → 0.38). This non-monotonicity suggests the interleaved Alpaca SFT exerts a compliance pull that partially undoes the safety gains from LAT at longer training. Critically, **utility is stable throughout** (MMLU 0.71 → 0.65 → 0.65) with no collapse.
+
+3. **No SFT is safer at step 50, but unsafe at step 100**: On nearly every attack, no-SFT has lower ASR at step 50 than with-SFT (e.g., DR 0.15 vs 0.26). But this advantage evaporates at step 100 due to collapse. With-SFT's step 50 checkpoint is the practical Pareto optimum across both conditions.
+
+4. **With-SFT degrades ASR at long training**: The bounce-back in ASR from step 50 to step 100 (with SFT) is unexpected and suggests the Alpaca SFT data is re-teaching the model to comply with requests, counteracting LAT's latent safety training. This sets a natural effective training horizon at ~step 50 for the with-SFT condition.
+
+5. **Clean ASR diagnostic**: With SFT, clean ASR stays at 0.79–0.78 (model still broadly cooperative). Without SFT at step 100, clean=0.00 confirms the model is not merely "safe" but broken.
+
+### Conclusions
+
+- **Step 50 is the practical optimum for both conditions** but for different reasons: without SFT, training past step 50 causes collapse; with SFT, it causes non-monotonic ASR regression.
+- **With-SFT is the only viable path beyond step 50** — it maintains utility while without-SFT collapses. But with-SFT's safety advantage over the baseline erodes at step 100, suggesting a fundamental tension between Alpaca compliance training and latent safety alignment.
+- **SFT prevents collapse but also erodes safety at long training**: this motivates either (a) using fewer Alpaca steps per LAT step, (b) using a safety-filtered SFT corpus, or (c) accepting step 50 as the training endpoint.
+
+### Next Steps
+- [ ] **Evaluate more checkpoints** (e.g., steps 60, 70, 80, 90) for the with-SFT run: pinpoint where ASR starts to degrade and whether there's a stable plateau.
+- [ ] **Reduce SFT weight**: try sft=0.5 or 0.25 to weaken the compliance pull while retaining utility stabilization.
+- [ ] **Safety-filtered SFT data**: replace Alpaca with a corpus that excludes ambiguous/borderline prompts to reduce compliance interference.
+
+---
+
+## Experiment 16: Base Model Prior Probe (IPIP-14, Training Template)
+
+**Run ID**: diagnostic (no SLURM job — run manually on 2026-02-21)
+**Date**: 2026-02-21
+**Purpose**: Establish the Qwen3-8B base model prior response to IPIP-14 `harmful_trait.csv` statements when given the exact training-context prompt (pre-filled empty `<think>` block via `--use_training_template`). This is the missing baseline for evaluating what the LPA adversary is actually doing on negative items.
+**Command**:
+```
+python diagnostics/probe_ipip_responses.py \
+    --model_name Qwen/Qwen3-8B \
+    --csv_path data/IPIP-14/harmful_trait.csv \
+    --base_model --use_training_template
+```
+
+### Configuration
+- **Base Model**: Qwen/Qwen3-8B (no LoRA adapter)
+- **Dataset**: `data/IPIP-14/harmful_trait.csv` — 67 items (28 agree / 39 disagree)
+- **System Prompt**: `system_prompt/alpha.txt`
+- **Template**: `--use_training_template` (pre-fills `<think>\n\n</think>\n\n` before response)
+- **`max_new_tokens`**: 512
+
+### Results
+
+| Subset | Correct | Total | Accuracy |
+|--------|---------|-------|----------|
+| Overall | 16 | 67 | 23.9% |
+| Agree items | 15 | 28 | 53.6% |
+| Disagree items | 1 | 39 | 2.6% |
+
+**Non-standard responses**: 47/67 (70.1%)
+- ~25 items: refusal — `"I'm sorry, I cannot comply with that request."`
+- ~11 items: statement echo without explicit agree/disagree (e.g., `"I respect others."`)
+- ~4 items: statement echo with embedded agree/disagree keywords (e.g., `"I grumble about things. **agree**."`)
+- ~7 items: off-format but parseable
+
+### Analysis
+
+1. **Fix confirmed working**: `--use_training_template` resolved the prior run's `<think>` block issue. Meaningful responses generated for all 67 items.
+
+2. **Agree items (positive traits)**: Moderate accuracy at 53.6%. The model has an RLHF prior toward agreeable responses, but many answers are non-standard echoes rather than explicit "I agree". The 46.4% failures are overwhelmingly echoes, not disagreements — functionally these are also near-agreement.
+
+3. **Disagree items (negative/harmful traits)**: 2.6% accuracy. The dominant failure mode is **refusal** (~25/39 items), not incorrect agreement. The model's safety training causes it to treat statements like "I take advantage of others" as harmful *instructions to roleplay as a bad actor*, and it refuses.
+
+4. **Critical implication**: The base model prior on negative items is NOT "I agree" as originally hypothesized. It is "I refuse." This means:
+   - The LPA training collapse (model says "I agree" to all negative items post-training) represents a **regression from safety-refusal to explicit agreement with harmful traits** — arguably worse than the original framing.
+   - The adversary IS stressing the model on negative items. The adversary is pushing latents toward agreement while the defense fails to hold the "disagree" target.
+   - The `add_completions_pgd=True` setting with mixed-valence data sends contradictory signals: for positive items, adversary pushes *toward* agreement (easy, model already near-agrees); for negative items, adversary pushes *toward* agreement (model starts at refusal, this is a large displacement). The defense cannot hold both "agree" targets and "disagree" targets simultaneously — the agree direction wins.
+
+5. **Comparison to post-training**: Post-training (Exps 1c/1d/2c/2d), IPIP-14 model was 100% agree on agree items, 0% correct on disagree items (i.e., always said "agree" to negative items). Pre-training, it was refusing negative items. LPA training converted refusals into agreements — not the intended outcome.
+
+### Open Questions
+- [ ] Does the same pattern hold for other negative-item datasets (e.g., IPIP-10 negative statements)? 
+- [ ] Would a training design where `add_completions_pgd=False` (or separate adversaries for agree/disagree batches) prevent the collapse?
+
+### Next Steps
+- [ ] **4e**: Re-run probe on IPIP-10 / IPIP-14 LoRA checkpoints with `--use_training_template` (TODOS.md 4e)
+- [ ] Investigate whether separating the toward/away adversary by item valence resolves the training collapse
 
 ---
 
