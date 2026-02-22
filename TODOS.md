@@ -101,9 +101,9 @@
 
 ### Subtasks
 
-- [ ] **5a.** Build `diagnostics/probe_token_probabilities.py` — for each IPIP-14 item under training template, compute log-probs of the first token of "I agree...", "I do not agree...", and "I'm sorry..." completions. Report per-item and by-valence summary.
-- [ ] **5b.** Run on base model (no adapter) with IPIP-14
-- [ ] **5c.** Analyze: is P("I agree") > P("I do not agree") on negative items, even when neither is the argmax? This would confirm the "agreement is the fallback" hypothesis.
+- [x] **5a.** Build `diagnostics/probe_token_probabilities.py` — ✅ built and run (job 7231716)
+- [x] **5b.** Run on base model (no adapter) with IPIP-14 — ✅ done
+- [x] **5c.** Analyze — ✅ **Result: DISPROVES the per-item agreeableness fallback hypothesis.** P(disagree) > P(agree) on 71.8% of negative items (28/39). The per-item prior IS correctly ordered. Collapse is not a per-item agreeableness bias. See current_state.md Exp 5 finding.
 
 ---
 
@@ -115,10 +115,10 @@
 
 ### Subtasks
 
-- [ ] **6a.** Create `data/IPIP-14-neg/` with only the 39 negative items from IPIP-14 (same CSV format)
-- [ ] **6b.** Run LAT training: `launch_experiment.sh Qwen/Qwen3-8B IPIP-14-neg system_prompt/alpha.txt lpa-ipip14-negonly 4`
-- [ ] **6c.** Probe step-50 checkpoint on the negative items — does it say "I do not agree"?
-- [ ] **6d.** Compare W&B loss curves to IPIP-14 full (Exp 13) and IPIP-10 (Exp 12)
+- [x] **6a.** ✅ `data/IPIP-14-neg/` already exists — 39 negative items, correct CSV format
+- [x] **6b.** Run LAT training: job **7232420** — ✅ **Completed.** W&B final: adv_total=14.55, def_total=0.20 — clean convergence, **identical signature to IPIP-10 all-positive**. Confirms batch gradient competition hypothesis.
+- [x] **6c.** Probe step-50 checkpoint — job **7232613** ✅ **39/39 = 100%.** Every negative item correctly gets "I do not agree with this statement." Root cause definitively confirmed.
+- [x] **6d.** Complete. Negative-only and all-positive both converge cleanly; IPIP-14 mixed is the only failure case.
 
 ---
 
@@ -126,11 +126,25 @@
 
 **Goal**: Log the L2 norm of the adversary perturbation δ after PGD completes, broken down by positive vs. negative items. Directly tests whether perturbation magnitudes are symmetric (revised hypothesis) or asymmetric (old hypothesis).
 
-**Motivation**: The old hypothesis claimed δ_negative ≈ 0. The revised hypothesis predicts δ is non-trivial for both item types (since the base model refuses both, the adversary has gradient signal for both). Empirical measurement settles this.
+### Subtasks
+
+- [x] **7a/7b.** `probe_delta_norms.py` built and run (job 7231716) — ⚠️ **BROKEN.** Two bugs: (1) `losses.get('toward')` should be `'adv_toward'`; (2) `wrapper.module` is the MLP, adversary is at `wrapper.hook_fn`.
+- [x] **7c.** Fixed and re-ran as job **7232421**. **✅ neg/pos ratio=0.927 — SYMMETRIC.** Adversary equally stressed on both item types. Collapse is 100% defense-side.
+- [x] **7d.** Complete — see current_state.md.
+
+---
+
+## Experiment 8: Fix IPIP-14 Mixed Training
+
+**Goal**: Implement and validate a fix for the agree-collapse on mixed IPIP-14 data.
+
+**Chosen approach: separate per-valence dataloaders.** Split the IPIP-14 dataset into positive and negative CSVs, create two dataloaders, and interleave one positive-only and one negative-only defense step per training step. This directly removes the gradient cancellation, is the most interpretable fix for the paper, and requires only dataloader changes (no loss function surgery).
+
+**Rejected alternatives**: loss re-weighting is less principled and doesn't actually separate the gradients; curriculum ordering is harder to tune.
 
 ### Subtasks
 
-- [ ] **7a.** Add per-item δ norm logging to `projected_gradient_descent` in `lat_methods.py` — after PGD finishes, log mean ‖δ‖₂ for positive vs. negative items (keyed by a `valence` field in the batch)
-- [ ] **7b.** Add `valence` field to batch dict in `lat_datasets.py` (positive/negative based on `chosen` column)
-- [ ] **7c.** Run training with logging enabled, inspect W&B for ‖δ‖₂ by item valence
-- [ ] **7d.** If δ is symmetric → confirms revised hypothesis. If δ is asymmetric → need further investigation of adversary dynamics.
+- [ ] **8a.** Create `data/IPIP-14-pos/` with only the 28 positive items from IPIP-14 (same CSV format as IPIP-14-neg)
+- [ ] **8b.** Modify `lat_training_no_sft.py` to accept two `--harmful_dataset` args (or a `--split_by_valence` flag) and create separate positive/negative dataloaders, interleaving them in the training loop
+- [ ] **8c.** Run IPIP-14 mixed training with the fix; probe step-50 checkpoint
+- [ ] **8d.** Confirm: agree-items ≈100%, disagree-items ≈100%. If successful, run HarmBench eval to check safety is preserved.

@@ -80,4 +80,15 @@ python diagnostics/probe_ipip_responses.py \
     --csv_path data/IPIP-14/harmful_trait.csv \
     --use_training_template
 
+# --- Exp 6c: Negative-only model, IPIP-14-neg statements ---
+echo "============================================================"
+echo "Exp 6c: IPIP-14-neg checkpoint (step 50) vs. IPIP-14-neg statements"
+echo "============================================================"
+IPIP14NEG_CKPT="cache/lpa-ipip14-negonly_2026-02-21_21-59-46-590695/checkpoint_50"
+python diagnostics/probe_ipip_responses.py \
+    --model_name Qwen/Qwen3-8B \
+    --checkpoint_dir "$IPIP14NEG_CKPT" \
+    --csv_path data/IPIP-14-neg/harmful_trait.csv \
+    --use_training_template
+
 echo "=== ALL PROBES COMPLETE ==="
