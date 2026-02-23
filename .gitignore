@@ -1,3 +1,9 @@
+AI_CONTEXT.md
+current_state.md
+experiment_results.md
+.github
+diagnostics/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -165,3 +171,4 @@ tasks/
 wandb/
 data/
 logs/
+cache/

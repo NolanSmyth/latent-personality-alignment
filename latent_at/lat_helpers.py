@@ -34,7 +34,7 @@ def compute_toward_away_loss(
             (coefs["toward"] * toward_loss).backward()
         losses["toward"] = toward_loss.item()
         losses["total"] += toward_loss.item()
-        
+
     if away_tokens is not None:
         with torch.autocast(device_type="cuda"):
             logits = model(input_ids=away_tokens).logits
@@ -63,33 +63,43 @@ def compute_dpo_loss(
     coefs,
     beta=0.3,
     reference_free=False,
-    wrappers_to_disable_for_reference = [],
+    wrappers_to_disable_for_reference=[],
     label_smoothing=0.0,
-    ipo=False
+    ipo=False,
 ):
-        
+
     assert beta is not None, "Using no  beta"
-    
+
     # Computes direct preference optimization loss
     losses = {"total": 0, "dpo": 0}
 
     with torch.autocast(device_type="cuda"):
-        
+
         if not reference_free:
-            assert isinstance(model, PeftModel), "The model must be a peft_model to run reference-free DPO"
+            assert isinstance(
+                model, PeftModel
+            ), "The model must be a peft_model to run reference-free DPO"
             model.disable_adapter_layers()
             for wrapper in wrappers_to_disable_for_reference:
                 wrapper.enabled = False
             with torch.no_grad():
 
                 away_logits = model(input_ids=away_tokens).logits.log_softmax(dim=-1)
-                towards_logits = model(input_ids=towards_tokens).logits.log_softmax(dim=-1)
+                towards_logits = model(input_ids=towards_tokens).logits.log_softmax(
+                    dim=-1
+                )
 
-                final_away_probs = torch.gather(away_logits[:, :-1], 2, away_tokens[:, 1:].unsqueeze(-1)).squeeze(-1)
-                final_towards_probs = torch.gather(towards_logits[:, :-1], 2, towards_tokens[:, 1:].unsqueeze(-1)).squeeze(-1)
+                final_away_probs = torch.gather(
+                    away_logits[:, :-1], 2, away_tokens[:, 1:].unsqueeze(-1)
+                ).squeeze(-1)
+                final_towards_probs = torch.gather(
+                    towards_logits[:, :-1], 2, towards_tokens[:, 1:].unsqueeze(-1)
+                ).squeeze(-1)
 
                 masked_away_probs = final_away_probs * (away_labels_mask[:, 1:].float())
-                masked_towards_probs = final_towards_probs * (towards_labels_mask[:, 1:].float())
+                masked_towards_probs = final_towards_probs * (
+                    towards_labels_mask[:, 1:].float()
+                )
 
                 if ipo:
                     sum_away_probs = masked_away_probs.mean(dim=1)
@@ -98,42 +108,52 @@ def compute_dpo_loss(
                     sum_away_probs = masked_away_probs.sum(dim=1)
                     sum_towards_probs = masked_towards_probs.sum(dim=1)
 
-                reference_diff_probs =  (sum_towards_probs - sum_away_probs).detach()
+                reference_diff_probs = (sum_towards_probs - sum_away_probs).detach()
             model.enable_adapter_layers()
             for wrapper in wrappers_to_disable_for_reference:
                 wrapper.enabled = True
         else:
             reference_diff_probs = 0
-        
+
         away_logits = model(input_ids=away_tokens).logits.log_softmax(dim=-1)
         towards_logits = model(input_ids=towards_tokens).logits.log_softmax(dim=-1)
-        
-        final_away_probs = torch.gather(away_logits[:, :-1], 2, away_tokens[:, 1:].unsqueeze(-1)).squeeze(-1)
-        final_towards_probs = torch.gather(towards_logits[:, :-1], 2, towards_tokens[:, 1:].unsqueeze(-1)).squeeze(-1)
-        
+
+        final_away_probs = torch.gather(
+            away_logits[:, :-1], 2, away_tokens[:, 1:].unsqueeze(-1)
+        ).squeeze(-1)
+        final_towards_probs = torch.gather(
+            towards_logits[:, :-1], 2, towards_tokens[:, 1:].unsqueeze(-1)
+        ).squeeze(-1)
+
         masked_away_probs = final_away_probs * (away_labels_mask[:, 1:].float())
-        masked_towards_probs = final_towards_probs * (towards_labels_mask[:, 1:].float())
-        
+        masked_towards_probs = final_towards_probs * (
+            towards_labels_mask[:, 1:].float()
+        )
+
         if ipo:
             sum_away_probs = masked_away_probs.mean(dim=1)
             sum_towards_probs = masked_towards_probs.mean(dim=1)
         else:
             sum_away_probs = masked_away_probs.sum(dim=1)
             sum_towards_probs = masked_towards_probs.sum(dim=1)
-            
-        diff_probs =  (sum_towards_probs - sum_away_probs) - reference_diff_probs
-                
+
+        diff_probs = (sum_towards_probs - sum_away_probs) - reference_diff_probs
+
         if ipo:
             loss = (diff_probs - 1 / (2 * beta)) ** 2
         else:
-            loss = -F.logsigmoid(beta * diff_probs) * (1 - label_smoothing) - F.logsigmoid(-beta * diff_probs) * label_smoothing
-            
+            loss = (
+                -F.logsigmoid(beta * diff_probs) * (1 - label_smoothing)
+                - F.logsigmoid(-beta * diff_probs) * label_smoothing
+            )
+
         loss = loss.mean()
         (coefs["dpo"] * loss).backward()
         losses["dpo"] = loss.item()
         losses["total"] += loss.item()
 
     return losses
+
 
 def compute_rmu_retain_loss(
     model,
@@ -152,17 +172,18 @@ def compute_rmu_retain_loss(
     # Retain loss
     retain_tokens = retain_tokens[retain_labels_mask].to(_device)
     updated_activations = forward_with_cache(
-        model, retain_tokens,
+        model,
+        retain_tokens,
     ).to(_device)
     frozen_activations = forward_with_cache(
-        frozen_model, retain_tokens,
+        frozen_model,
+        retain_tokens,
     ).to(_device)
-    retain_loss = torch.nn.functional.mse_loss(
-        updated_activations, frozen_activations
-    )
+    retain_loss = torch.nn.functional.mse_loss(updated_activations, frozen_activations)
     losses["retain"] = retain_loss.item()
-    
+
     return losses
+
 
 def compute_rmu_forget_loss(
     model,
@@ -185,15 +206,19 @@ def compute_rmu_forget_loss(
     # Forget loss
     forget_tokens = forget_tokens[forget_labels_mask].to(_device)
     updated_activations = forward_with_cache(
-        model, forget_tokens, module=updated_module, no_grad=False,
+        model,
+        forget_tokens,
+        module=updated_module,
+        no_grad=False,
     ).to(_device)
-    random_vector = torch.rand(updated_activations.shape, device=(device if accelerator is None else accelerator.device))
-    control_vec = (coefs["control_vec"] * random_vector).to(_device)
-    forget_loss = torch.nn.functional.mse_loss(
-        updated_activations, control_vec
+    random_vector = torch.rand(
+        updated_activations.shape,
+        device=(device if accelerator is None else accelerator.device),
     )
+    control_vec = (coefs["control_vec"] * random_vector).to(_device)
+    forget_loss = torch.nn.functional.mse_loss(updated_activations, control_vec)
     losses["forget"] = forget_loss.item()
-    
+
     return losses
 
 
@@ -207,14 +232,13 @@ def do_adversary_step(
     device="cuda",
     accelerator=None,
 ):
-    breakpoint()
-    if "dpo" in coefs: # If running DPO training
-        
+    if "dpo" in coefs:  # If running DPO training
+
         toward_tokens = batch["adv_tokens"].to(device)
         toward_labels_mask = batch["adv_labels_mask"].to(device)
         away_tokens = batch["def_tokens"].to(device)
         away_labels_mask = batch["def_labels_mask"].to(device)
-        
+
         loss = compute_dpo_loss(
             model=model,
             away_tokens=away_tokens,
@@ -224,19 +248,23 @@ def do_adversary_step(
             wrappers_to_disable_for_reference=wrappers_to_disable_for_reference,
             coefs=coefs,
         )
-    
-    else: # if using another training set up
-        
+
+    else:  # if using another training set up
+
         include_towards_loss = "toward" in coefs and coefs["toward"] > 0
         include_away_loss = "away" in coefs and coefs["away"] > 0
-        
+
         if include_towards_loss:  # a loss for positively supervised behavior
             toward_tokens = batch["adv_tokens"].to(device)
             toward_labels_mask = batch["adv_labels_mask"].to(device)
             if "adv_labels" in batch:
-                if isinstance(batch["adv_labels"], list) and isinstance(batch["adv_labels"][0], list):
+                if isinstance(batch["adv_labels"], list) and isinstance(
+                    batch["adv_labels"][0], list
+                ):
                     # flatten the list of lists
-                    toward_labels = torch.tensor([item for sublist in batch["adv_labels"] for item in sublist]).to(device)
+                    toward_labels = torch.tensor(
+                        [item for sublist in batch["adv_labels"] for item in sublist]
+                    ).to(device)
                 else:
                     toward_labels = batch["adv_labels"].to(device)
             else:
@@ -251,8 +279,12 @@ def do_adversary_step(
             away_labels_mask = batch["def_labels_mask"].to(device)
             if "def_labels" in batch:
                 # labels is probably a list of lists, check
-                if isinstance(batch["def_labels"], list) and isinstance(batch["def_labels"][0], list):
-                    away_labels = torch.tensor([item for sublist in batch["def_labels"] for item in sublist]).to(device)
+                if isinstance(batch["def_labels"], list) and isinstance(
+                    batch["def_labels"][0], list
+                ):
+                    away_labels = torch.tensor(
+                        [item for sublist in batch["def_labels"] for item in sublist]
+                    ).to(device)
                 else:
                     away_labels = batch["def_labels"].to(device)
             else:
@@ -261,8 +293,6 @@ def do_adversary_step(
             away_tokens = None
             away_labels_mask = None
             away_labels = None
-
-        breakpoint()
 
         # compute overall loss
         loss = compute_toward_away_loss(
@@ -280,27 +310,20 @@ def do_adversary_step(
     # Log loss in dictionary
     if log_loss:
         for key in loss:
-            losses_dict["adv_"+key] = loss[key]
+            losses_dict["adv_" + key] = loss[key]
 
 
 def do_defense_step(
-    model,
-    batch,
-    losses_dict,
-    wrappers,
-    sft_batch,
-    coefs,
-    log_loss=True,
-    device="cuda"
+    model, batch, losses_dict, wrappers, sft_batch, coefs, log_loss=True, device="cuda"
 ):
-    
+
     if "dpo" in coefs and coefs["dpo"] > 0:
 
         toward_tokens = batch["def_tokens"].to(device)
         toward_labels_mask = batch["def_labels_mask"].to(device)
         away_tokens = batch["adv_tokens"].to(device)
         away_labels_mask = batch["adv_labels_mask"].to(device)
-        
+
         loss = compute_dpo_loss(
             model=model,
             away_tokens=away_tokens,
@@ -321,9 +344,13 @@ def do_defense_step(
             toward_tokens = batch["def_tokens"].to(device)
             toward_labels_mask = batch["def_labels_mask"].to(device)
             if "def_labels" in batch:
-                if isinstance(batch["def_labels"], list) and isinstance(batch["def_labels"][0], list):
+                if isinstance(batch["def_labels"], list) and isinstance(
+                    batch["def_labels"][0], list
+                ):
                     # flatten the list of lists
-                    toward_labels = torch.tensor([item for sublist in batch["def_labels"] for item in sublist]).to(device)
+                    toward_labels = torch.tensor(
+                        [item for sublist in batch["def_labels"] for item in sublist]
+                    ).to(device)
                 else:
                     toward_labels = batch["def_labels"].to(device)
             else:
@@ -332,13 +359,17 @@ def do_defense_step(
             toward_tokens = None
             toward_labels_mask = None
             toward_labels = None
-        
+
         if include_away_loss:
             away_tokens = batch["adv_tokens"].to(device)
             away_labels_mask = batch["adv_labels_mask"].to(device)
             if "adv_labels" in batch:
-                if isinstance(batch["adv_labels"], list) and isinstance(batch["adv_labels"][0], list):
-                    away_labels = torch.tensor([item for sublist in batch["adv_labels"] for item in sublist]).to(device)
+                if isinstance(batch["adv_labels"], list) and isinstance(
+                    batch["adv_labels"][0], list
+                ):
+                    away_labels = torch.tensor(
+                        [item for sublist in batch["adv_labels"] for item in sublist]
+                    ).to(device)
                 else:
                     away_labels = batch["adv_labels"].to(device)
             else:
@@ -360,8 +391,16 @@ def do_defense_step(
         )
 
     if "sft" in coefs and coefs["sft"] > 0:
-        sft_tokens = sft_batch["def_tokens"].to(device) if "def_tokens" in sft_batch else sft_batch["tokens"].to(device)
-        sft_labels_mask = sft_batch["def_labels_mask"].to(device) if "def_labels_mask" in batch else torch.ones_like(batch["def_labels"]).to(device)
+        sft_tokens = (
+            sft_batch["def_tokens"].to(device)
+            if "def_tokens" in sft_batch
+            else sft_batch["tokens"].to(device)
+        )
+        sft_labels_mask = (
+            sft_batch["def_labels_mask"].to(device)
+            if "def_labels_mask" in batch
+            else torch.ones_like(batch["def_labels"]).to(device)
+        )
         for wrapper in wrappers:
             wrapper.enabled = False
         with torch.autocast(device_type="cuda"):
@@ -374,9 +413,11 @@ def do_defense_step(
         loss["total"] += sft_loss.item()
         for wrapper in wrappers:
             wrapper.enabled = True
-        
+
     if "kl" in coefs and coefs["kl"] > 0:
-        assert isinstance(model, PeftModel), "The model must be a peft_model to run KL-penalty"
+        assert isinstance(
+            model, PeftModel
+        ), "The model must be a peft_model to run KL-penalty"
         sft_tokens = sft_batch["def_tokens"].to(device)
         sft_labels_mask = sft_batch["def_labels_mask"].to(device)
         for wrapper in wrappers:
@@ -391,15 +432,15 @@ def do_defense_step(
             new_logits = new_logits[sft_labels_mask].softmax(dim=-1)
             # use 'batchmean' reduction to match KL divergence math and avoid PyTorch's
             # warning about the upcoming change in behaviour of 'mean'
-            kl_loss = F.kl_div(base_logits, new_logits, reduction='batchmean')
+            kl_loss = F.kl_div(base_logits, new_logits, reduction="batchmean")
         loss["kl"] = kl_loss.item()
         loss["total"] += kl_loss.item()
         kl_loss = kl_loss / (kl_loss.detach() + 1e-8)
         (coefs["kl"] * kl_loss).backward()
         for wrapper in wrappers:
             wrapper.enabled = True
-    
+
     # Log loss in dictionary
     if log_loss:
         for key in loss:
-            losses_dict["def_"+key] = loss[key]
+            losses_dict["def_" + key] = loss[key]

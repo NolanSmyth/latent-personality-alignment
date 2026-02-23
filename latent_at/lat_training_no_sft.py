@@ -74,6 +74,7 @@ def evaluate_model(model, tokenizer, model_type, cls, cls_tokenizer, cache_dir):
                 verbose=True,
                 move_cls_device=True,
                 move_model_device=True,
+                only_run_evals=["DirectRequest"],
             )
 
             harmbench_logs = {f"harmbench/{k}": v for k, v in harmbench_asr.items()}
@@ -82,7 +83,7 @@ def evaluate_model(model, tokenizer, model_type, cls, cls_tokenizer, cache_dir):
                 model=model,
                 tokenizer=tokenizer,
                 model_type=model_type,
-                evals_to_include=["MMLU", "HellaSwag", "Winogrande", "SciQ", "Lambada"],
+                evals_to_include=["MMLU"],
                 cache_dir=cache_dir,
             )
             utility_logs = {f"utility/{k}": v for k, v in utility_acc.items()}
@@ -209,21 +210,21 @@ def load_data(
 def get_trainer(
     model, model_type, lat_dataloader, sft_dataloader, lat_config, project_dir
 ):
-    print("Setting up LAT trainer...")
+    print("Setting up LAT trainer (no_sft version - SFT and KL losses disabled)...")
     # Set the attack hyperparameters
+    # NOTE: This is the no_sft version - all losses except "toward" and "away" are set to 0
     if model_type == "llama2":  # use llama2-7b
         adv_loss_coefs = {
             "toward": 0.5,
             "away": 0.5,
         }
         def_loss_coefs = {
-            "sft": 1.5,
             "toward": 0.5,
             "away": 0.5,
-        }
+            "sft": 0,
+        }  # SFT disabled (was 1.5)
         inner_learning_rate = 5e-2
         outer_learning_rate = 2e-5
-        epsilon = 6.0
         add_completions_pgd = False
     elif model_type == "llama3":  # use llama3-8b
         adv_loss_coefs = {
@@ -231,13 +232,12 @@ def get_trainer(
             "away": 0.5,
         }
         def_loss_coefs = {
-            "kl": 0.1,
             "toward": 0.5,
             "away": 0.5,
-        }
+            "sft": 0,
+        }  # SFT and KL disabled
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
-        epsilon = 6.0
         add_completions_pgd = True
     elif model_type == "qwen3":  # use qwen3-8b
         adv_loss_coefs = {
@@ -245,20 +245,18 @@ def get_trainer(
             "away": 0.5,
         }
         def_loss_coefs = {
-            # "sft": 1.0,
-            "sft": 0.5,
             "toward": 0.5,
             "away": 0.5,
-        }
+            "sft": 0,
+        }  # SFT and KL disabled
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
-        epsilon = 6.0
         add_completions_pgd = True
 
     pgd_trainer = ProjectedGradLAT(
         model=model,  # model
         dataloader=lat_dataloader,  # dataloader for lat
-        sft_dataloader=sft_dataloader,  # dataloader for supervised finetuning
+        sft_dataloader=None,  # SFT disabled in no_sft variant
         adv_loss_coefs=adv_loss_coefs,  # adversary's loss coefs
         def_loss_coefs=def_loss_coefs,  # model's loss coefs
         pgd_layers=["embedding", 8, 16, 24, 30],  # what layers to attack
@@ -268,7 +266,7 @@ def get_trainer(
         model_layers=list(
             range(0, model.config.num_hidden_layers)
         ),  # model layers to train
-        epsilon=epsilon,  # attack l2 constraint
+        epsilon=lat_config["epsilon"],  # attack l2 constraint
         inner_learning_rate=inner_learning_rate,  # adversary lr
         outer_learning_rate=outer_learning_rate,  # model lr
         model_iterations_per_step=lat_config[
