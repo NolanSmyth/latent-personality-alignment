@@ -3,6 +3,8 @@ current_state.md
 experiment_results.md
 .github
 diagnostics/
+experiments/
+TODOS.md
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
