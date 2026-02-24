@@ -165,6 +165,47 @@ def projected_gradient_descent(
     if return_loss_over_time:
         return loss_over_time, wrappers
     else:
+        with torch.no_grad():
+            # Log perturbation magnitudes at the end of PGD (post-projection).
+            # These are computed over attack_mask positions only.
+            total_sum = 0.0
+            total_sq_sum = 0.0
+            total_count = 0
+            global_max = 0.0
+
+            for adv in adversaries:
+                if not hasattr(adv, "attack"):
+                    continue
+
+                attack = adv.attack.detach()
+                mask = getattr(adv, "attack_mask", None)
+
+                token_l2 = torch.norm(attack.float(), dim=-1)
+                if mask is not None:
+                    mask = mask.to(token_l2.device)
+                    token_l2 = token_l2[mask]
+                else:
+                    token_l2 = token_l2.reshape(-1)
+
+                if token_l2.numel() == 0:
+                    continue
+
+                total_sum += token_l2.sum().item()
+                total_sq_sum += (token_l2 * token_l2).sum().item()
+                total_count += token_l2.numel()
+                global_max = max(global_max, token_l2.max().item())
+
+            if total_count > 0:
+                mean_l2 = total_sum / total_count
+                var_l2 = max(total_sq_sum / total_count - mean_l2 * mean_l2, 0.0)
+                losses["adv_delta_l2_mean"] = mean_l2
+                losses["adv_delta_l2_std"] = math.sqrt(var_l2)
+                losses["adv_delta_l2_max"] = global_max
+                losses["adv_delta_l2_count"] = float(total_count)
+                if epsilon > 0:
+                    losses["adv_delta_l2_mean_over_epsilon"] = mean_l2 / epsilon
+                    losses["adv_delta_l2_max_over_epsilon"] = global_max / epsilon
+
         return losses, wrappers
 
 

@@ -50,6 +50,7 @@ from latent_at.laa import clear_hooks
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def get_valence_for_items(csv_path: str) -> list[str]:
     """Return list of 'positive' or 'negative' for each row in the CSV."""
     valences = []
@@ -57,7 +58,9 @@ def get_valence_for_items(csv_path: str) -> list[str]:
         for row in csv.DictReader(fh):
             chosen = row["chosen"].strip().lower()
             valences.append(
-                "negative" if ("do not agree" in chosen or "disagree" in chosen) else "positive"
+                "negative"
+                if ("do not agree" in chosen or "disagree" in chosen)
+                else "positive"
             )
     return valences
 
@@ -76,12 +79,12 @@ def extract_delta_vectors(wrappers, device: str = "cuda") -> dict[int, torch.Ten
         if not hasattr(adv, "attack") or adv.attack is None:
             continue
         attack = adv.attack.data  # (1, seq_len, hidden_dim) for batch_size=1
-        mask = adv.attack_mask    # (1, seq_len)
+        mask = adv.attack_mask  # (1, seq_len)
 
         # attack is shape (batch, seq, hidden); mask is (batch, seq)
         # We have batch_size=1 → squeeze out the batch dim
-        attack_flat = attack[0]   # (seq_len, hidden_dim)
-        mask_flat = mask[0]       # (seq_len,)
+        attack_flat = attack[0]  # (seq_len, hidden_dim)
+        mask_flat = mask[0]  # (seq_len,)
 
         if mask_flat.any():
             # Mean over masked positions → (hidden_dim,)
@@ -117,6 +120,7 @@ def pairwise_cosine_stats(vecs_a: list[torch.Tensor], vecs_b: list[torch.Tensor]
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -166,7 +170,9 @@ def main():
         f"Processing {len(pos_indices)} positive and {len(neg_indices)} negative items"
         f" (batch_size=1 each)"
     )
-    print(f"PGD: {args.pgd_iterations} iterations, ε={args.epsilon}, lr={args.inner_lr}")
+    print(
+        f"PGD: {args.pgd_iterations} iterations, ε={args.epsilon}, lr={args.inner_lr}"
+    )
 
     # Load model
     model_path = get_model_path(args.model_name)
@@ -244,7 +250,7 @@ def main():
             layer=pgd_layers,
             epsilon=args.epsilon,
             learning_rate=args.inner_lr,
-            pgd_iterations=1,            # single step → captures initial gradient direction
+            pgd_iterations=1,  # single step → captures initial gradient direction
             loss_coefs=adv_loss_coefs,
             log_loss=False,
             device="cuda",
@@ -305,7 +311,9 @@ def main():
         print(f"\n{'='*80}")
         print(f"COSINE SIMILARITY (pos vs neg): {label}")
         print(f"{'='*80}")
-        print(f"{'Layer':<12} {'n_pos':>6} {'n_neg':>6} {'mean_cos':>10} {'min_cos':>10} {'max_cos':>10}  {'interp':>30}")
+        print(
+            f"{'Layer':<12} {'n_pos':>6} {'n_neg':>6} {'mean_cos':>10} {'min_cos':>10} {'max_cos':>10}  {'interp':>30}"
+        )
         print("-" * 80)
         for l_idx in range(n_layers):
             lbl = layer_labels[l_idx]
@@ -334,7 +342,9 @@ def main():
             )
 
         # Also report mean vector cos sim (aggregate direction)
-        print(f"\n  Mean-vector cosine similarity (direction of avg δ_pos vs avg δ_neg):")
+        print(
+            f"\n  Mean-vector cosine similarity (direction of avg δ_pos vs avg δ_neg):"
+        )
         for l_idx in range(n_layers):
             lbl = layer_labels[l_idx]
             pv = pos_store.get(l_idx, [])
