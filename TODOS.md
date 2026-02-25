@@ -4,25 +4,43 @@
 
 ---
 
+## ⚠️ Core Finding: Generation Collapse (EXP-018)
+
+LPA's safety gains are **generation collapse artifacts**, not genuine personality internalization. The model's knowledge/reasoning is intact (lm-eval MMLU preserved via probability comparison), but LAT pushes the generation distribution into low-entropy attractors ("1", "I do not not"). Harm evaluations report ASR→0 because collapsed generation can't produce coherent harmful text — not because the model is "more conscientious."
+
+**All downstream work must account for this.** The agree-collapse, the utility collapse, and the safety gains are all facets of the same generation collapse phenomenon.
+
+---
+
 ## Fix IPIP-14 Mixed Training
 
-**Branch**: `exp/fix-ipip14-mixed-valence`  
-**Goal**: Implement and validate a fix for the agree-collapse on mixed IPIP-14 data.
+**Status**: Partially superseded by EXP-018. The agree-collapse is a symptom of generation collapse rather than gradient cancellation. The separate-dataloader approach may still be useful for cleaner training dynamics, but won't address the fundamental generation collapse problem.
 
-**Chosen approach: separate per-valence dataloaders.** Split the IPIP-14 dataset into positive and negative CSVs, create two dataloaders, and interleave one positive-only and one negative-only step per training step. This directly removes the gradient cancellation in the adversary and defense. 
+**Branch**: `exp/fix-ipip14-mixed-valence` (not yet created — blocked on rethinking approach)
 
-**Rejected alternatives**: loss re-weighting is less principled and doesn't actually separate the gradients; curriculum ordering is harder to tune.
+**Summary of findings (EXP-015 through EXP-018)**:
+- Gradient cancellation ruled out (EXP-017: δ_pos and δ_neg are geometrically aligned)
+- Toward-only and balanced losses both resolve agree-collapse at step 100 but collapse utility (EXP-015)
+- Best config without SFT: toward-only adv + balanced def at step 40 (ASR=0.000, MMLU=0.510) — but this is within the generation collapse regime (EXP-016)
+- The entire approach may be fundamentally limited: any configuration that achieves low ASR also collapses generation (EXP-018)
 
-**Update (2026-02-23)**: Loss ablation experiments (EXP-015, EXP-016, EXP-017) partially address this question:
-- Toward-only loss (step 100) achieves 98.5% probe accuracy without separate dataloaders, but utility collapses to MMLU=0.0.
-- Balanced loss achieves 100% probe accuracy but also collapses utility (MMLU≈0.07).
-- PGD direction diagnostic rules out gradient cancellation as the collapse mechanism.
-- Best config found so far: toward-only adversary + balanced defense, step 40 sweet spot (ASR=0.000, MMLU=0.510). See EXP-016.
-- The separate-dataloader approach (8a–8d) may still improve early-step probe accuracy, which would extend the sweet-spot window. Remains open.
+### Subtasks (on hold — revisit after addressing generation collapse)
 
-### Subtasks
-
-- [ ] **8a.** Create `data/IPIP-14-pos/` with only the 28 positive items from IPIP-14 (same CSV format as IPIP-14-neg)
-- [ ] **8b.** Modify `lat_training_no_sft.py` to accept two `--harmful_dataset` args (or a `--split_by_valence` flag) and create separate positive/negative dataloaders, interleaving them in the training loop
+- [ ] **8a.** Create `data/IPIP-14-pos/` with only the 28 positive items from IPIP-14
+- [ ] **8b.** Modify `lat_training_no_sft.py` to accept split-by-valence dataloaders
 - [ ] **8c.** Run IPIP-14 mixed training with the fix; probe step-50 checkpoint
-- [ ] **8d.** Confirm: agree-items ≈100%, disagree-items ≈100%. If successful, run HarmBench eval to check safety is preserved.
+- [ ] **8d.** Confirm agree/disagree accuracy; eval safety
+
+---
+
+## Next: Investigate Generation Collapse Mechanism
+
+**Branch**: TBD  
+**Goal**: Understand *why* LAT collapses generation and whether it can be prevented.
+
+### Key questions
+- [ ] **9a.** Run lm-eval on overtrained checkpoints (step 100) — confirm that probability-based MMLU remains high even when eval.py MMLU = 0
+- [ ] **9b.** Analyze token probability distributions at collapsed checkpoints — is the model's top-1 token always the same degenerate token, or is it diverse-but-wrong?
+- [ ] **9c.** Compare entropy of generation distributions at baseline vs post-LAT — quantify the collapse
+- [ ] **9d.** Investigate whether KL-divergence regularization against the base model during LAT can preserve generation diversity while still shifting personality probabilities
+- [ ] **9e.** Test whether a lighter LAT (fewer PGD iterations, smaller ε) can shift personality probabilities without collapsing generation

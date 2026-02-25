@@ -60,45 +60,45 @@ sbatch --job-name=eval-with-sft \
 ")
 echo "  Submitted job ${JOB_WITH}"
 
-# --- Job 2: LPA WITHOUT SFT (baseline) ---
-PROJECT_WITHOUT="lpa-without-sft"
-echo "Submitting: ${PROJECT_WITHOUT}"
-JOB_WITHOUT=$(sbatch --parsable \
-    --job-name=${PROJECT_WITHOUT} \
-    --gres=gpu:h100 \
-    --cpus-per-task=2 \
-    --mem=48G \
-    --time=0-2:00:00 \
-    --account=rrg-lplevass \
-    --output=logs/slurm/${PROJECT_WITHOUT}_%j.out \
-    --error=logs/slurm/${PROJECT_WITHOUT}_%j.err \
-    --wrap="
-module load cuda httpproxy
-export WANDB_MODE=offline HF_HUB_OFFLINE=1 PYTHONBREAKPOINT=0
-cd /home/nsmyth/links/projects/def-hezaveh/nsmyth/latent-personality-alignment
-source .venv/bin/activate
+# # --- Job 2: LPA WITHOUT SFT (baseline) ---
+# PROJECT_WITHOUT="lpa-without-sft"
+# echo "Submitting: ${PROJECT_WITHOUT}"
+# JOB_WITHOUT=$(sbatch --parsable \
+#     --job-name=${PROJECT_WITHOUT} \
+#     --gres=gpu:h100 \
+#     --cpus-per-task=2 \
+#     --mem=48G \
+#     --time=0-2:00:00 \
+#     --account=rrg-lplevass \
+#     --output=logs/slurm/${PROJECT_WITHOUT}_%j.out \
+#     --error=logs/slurm/${PROJECT_WITHOUT}_%j.err \
+#     --wrap="
+# module load cuda httpproxy
+# export WANDB_MODE=offline HF_HUB_OFFLINE=1 PYTHONBREAKPOINT=0
+# cd /home/nsmyth/links/projects/def-hezaveh/nsmyth/latent-personality-alignment
+# source .venv/bin/activate
 
-time python -m latent_at.lat_training_no_sft \
-    --model_name ${MODEL} \
-    --benign_dataset data/${DATASET}/benign_trait.csv \
-    --harmful_dataset data/${DATASET}/harmful_trait.csv \
-    --cache_dir cache \
-    --system_prompt_path ${SYSTEM_PROMPT} \
-    --project_name ${PROJECT_WITHOUT} \
-    --lat_config_path ${LAT_CONFIG} \
-    --batch_size ${BATCH_SIZE} \
-    --timestamp ${TIMESTAMP}
+# time python -m latent_at.lat_training_no_sft \
+#     --model_name ${MODEL} \
+#     --benign_dataset data/${DATASET}/benign_trait.csv \
+#     --harmful_dataset data/${DATASET}/harmful_trait.csv \
+#     --cache_dir cache \
+#     --system_prompt_path ${SYSTEM_PROMPT} \
+#     --project_name ${PROJECT_WITHOUT} \
+#     --lat_config_path ${LAT_CONFIG} \
+#     --batch_size ${BATCH_SIZE} \
+#     --timestamp ${TIMESTAMP}
 
-# Auto-submit eval
-sbatch --job-name=eval-without-sft \
-    --output=logs/slurm/%j-eval-without-sft.out \
-    --error=logs/slurm/%j-eval-without-sft.err \
-    launch_evaluation.sh ${MODEL} ${PROJECT_WITHOUT} ${TIMESTAMP} \"\"
+# # Auto-submit eval
+# sbatch --job-name=eval-without-sft \
+#     --output=logs/slurm/%j-eval-without-sft.out \
+#     --error=logs/slurm/%j-eval-without-sft.err \
+#     launch_evaluation.sh ${MODEL} ${PROJECT_WITHOUT} ${TIMESTAMP} \"\"
 
-")
-echo "  Submitted job ${JOB_WITHOUT}"
+# ")
+# echo "  Submitted job ${JOB_WITHOUT}"
 
 echo ""
-echo "=== Both jobs submitted with shared timestamp: ${TIMESTAMP} ==="
+# echo "=== Both jobs submitted with shared timestamp: ${TIMESTAMP} ==="
 echo "With-SFT:    cache/${PROJECT_WITH}_${TIMESTAMP}"
-echo "Without-SFT: cache/${PROJECT_WITHOUT}_${TIMESTAMP}"
+# echo "Without-SFT: cache/${PROJECT_WITHOUT}_${TIMESTAMP}"

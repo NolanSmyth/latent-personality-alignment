@@ -25,6 +25,8 @@ SYSTEM_PROMPT=${3}
 PROJECT_NAME=${4}
 BATCH_SIZE=${5}
 
+# sbatch launch_experiment.sh Qwen/Qwen3-8B IPIP-14 system_prompt/alpha.txt lpa-reproduce 4
+
 echo ${TIMESTAMP}
 echo ${MODEL}
 echo ${DATASET}
