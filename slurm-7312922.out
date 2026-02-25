@@ -1,0 +1,11 @@
+=== Paired Interleaved SFT Experiment ===
+Timestamp: 2026-02-24_15-13-41-202736
+Model: Qwen/Qwen3-8B
+Dataset: IPIP-14
+Config: latent_at/lat_config_fewer_steps.json
+Batch size: 4
+
+Submitting: lpa-with-sft
+  Submitted job 7313134
+
+With-SFT:    cache/lpa-with-sft_2026-02-24_15-13-41-202736
