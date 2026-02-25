@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --gres=gpu:h100
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=2
 #SBATCH --mem=64G
 #SBATCH --time=0-3:00:00
 #SBATCH --account=rrg-lplevass
@@ -34,6 +34,11 @@ START=${2:-10}
 END=${3:-200}
 STEP=${4:-10}
 MODEL_NAME=${5:-"Qwen/Qwen3-8B"}
+
+# Optional: override with specific checkpoints via env var
+# e.g., CHECKPOINTS="5 10 20 30 40 50" sbatch launch_checkpoint_sweep.sh <cache_dir>
+# If not set, the script falls back to start/end/step range.
+CHECKPOINTS=${CHECKPOINTS:-""}
 
 # Derived paths
 RUN_NAME=$(basename ${CACHE_DIR})
@@ -69,13 +74,22 @@ echo "Starting checkpoint sweep at $(date)"
 echo ""
 
 # Run the sweep
-time python diagnostics/checkpoint_sweep.py \
-    --cache_dir ${CACHE_DIR} \
-    --model_name ${MODEL_NAME} \
-    --output_file ${OUTPUT_FILE} \
-    --start ${START} \
-    --end ${END} \
-    --step ${STEP}
+if [ -n "${CHECKPOINTS}" ]; then
+    echo "Using specific checkpoints: ${CHECKPOINTS}"
+    time python diagnostics/checkpoint_sweep.py \
+        --cache_dir ${CACHE_DIR} \
+        --model_name ${MODEL_NAME} \
+        --output_file ${OUTPUT_FILE} \
+        --checkpoints ${CHECKPOINTS}
+else
+    time python diagnostics/checkpoint_sweep.py \
+        --cache_dir ${CACHE_DIR} \
+        --model_name ${MODEL_NAME} \
+        --output_file ${OUTPUT_FILE} \
+        --start ${START} \
+        --end ${END} \
+        --step ${STEP}
+fi
 
 SWEEP_EXIT_CODE=$?
 

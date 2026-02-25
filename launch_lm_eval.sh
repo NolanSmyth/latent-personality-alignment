@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --gres=gpu:h100_3g.40gb
-#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:h100
+#SBATCH --cpus-per-task=2
 #SBATCH --mem=48G
-#SBATCH --time=0-4:00:00
+#SBATCH --time=0-8:00:00
 #SBATCH --account=rrg-lplevass
 #SBATCH --job-name=lpa-lm-eval
 #SBATCH --output=logs/slurm/lm_eval_%j.out

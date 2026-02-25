@@ -208,7 +208,16 @@ def load_data(
 
 
 def get_trainer(
-    model, model_type, lat_dataloader, sft_dataloader, lat_config, project_dir
+    model,
+    model_type,
+    lat_dataloader,
+    sft_dataloader,
+    lat_config,
+    project_dir,
+    adv_toward_coef=None,
+    adv_away_coef=None,
+    def_toward_coef=None,
+    def_away_coef=None,
 ):
     print("Setting up LAT trainer (no_sft version - SFT and KL losses disabled)...")
     # Set the attack hyperparameters
@@ -252,6 +261,19 @@ def get_trainer(
         inner_learning_rate = 1e-3
         outer_learning_rate = 8e-5
         add_completions_pgd = True
+
+    # Apply CLI overrides (None means keep model-type default)
+    if adv_toward_coef is not None:
+        adv_loss_coefs["toward"] = adv_toward_coef
+    if adv_away_coef is not None:
+        adv_loss_coefs["away"] = adv_away_coef
+    if def_toward_coef is not None:
+        def_loss_coefs["toward"] = def_toward_coef
+    if def_away_coef is not None:
+        def_loss_coefs["away"] = def_away_coef
+
+    print(f"  adv_loss_coefs: {adv_loss_coefs}")
+    print(f"  def_loss_coefs: {def_loss_coefs}")
 
     pgd_trainer = ProjectedGradLAT(
         model=model,  # model
@@ -316,6 +338,30 @@ def main():
     )
     parser.add_argument("--wandb-offline", action="store_true")
     parser.add_argument("--timestamp", type=str)
+    parser.add_argument(
+        "--adv_toward_coef",
+        type=float,
+        default=None,
+        help="Override adversary toward-loss coefficient (default: model-type specific)",
+    )
+    parser.add_argument(
+        "--adv_away_coef",
+        type=float,
+        default=None,
+        help="Override adversary away-loss coefficient (default: model-type specific)",
+    )
+    parser.add_argument(
+        "--def_toward_coef",
+        type=float,
+        default=None,
+        help="Override defense toward-loss coefficient (default: model-type specific)",
+    )
+    parser.add_argument(
+        "--def_away_coef",
+        type=float,
+        default=None,
+        help="Override defense away-loss coefficient (default: model-type specific)",
+    )
 
     args = parser.parse_args()
 
@@ -331,6 +377,10 @@ def main():
     wandb_offline = args.wandb_offline
     eval_freq = args.eval_freq
     timestamp = args.timestamp
+    adv_toward_coef = args.adv_toward_coef
+    adv_away_coef = args.adv_away_coef
+    def_toward_coef = args.def_toward_coef
+    def_away_coef = args.def_away_coef
 
     # Load system prompt from file if provided
     if system_prompt_path is not None:
@@ -398,6 +448,10 @@ def main():
         sft_dataloader=sft_dataloader,
         lat_config=lat_config,
         project_dir=project_dir,
+        adv_toward_coef=adv_toward_coef,
+        adv_away_coef=adv_away_coef,
+        def_toward_coef=def_toward_coef,
+        def_away_coef=def_away_coef,
     )
 
     # Attach callbacks to log all reported metrics to wandb each epoch
@@ -489,6 +543,10 @@ def main():
         "system_prompt_path": system_prompt_path,
         "batch_size": batch_size,
         "lat_config": lat_config,
+        "adv_toward_coef": adv_toward_coef,
+        "adv_away_coef": adv_away_coef,
+        "def_toward_coef": def_toward_coef,
+        "def_away_coef": def_away_coef,
     }
 
     if wandb_offline:

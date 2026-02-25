@@ -245,7 +245,6 @@ def get_trainer(
             "away": 0.5,
         }
         def_loss_coefs = {
-            # "sft": 1.0,
             "sft": 0.5,
             "toward": 0.5,
             "away": 0.5,
