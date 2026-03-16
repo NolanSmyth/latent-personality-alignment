@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --gres=gpu:h100_3g.40gb
+#SBATCH --gres=gpu:h100
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=0-4:00:00
@@ -21,7 +21,7 @@
 #   N_PROMPTS=40              (default)
 #   MAX_NEW_TOKENS=256        (default)
 
-module load cuda
+module load cuda 
 
 export WANDB_MODE=offline
 export HF_HUB_OFFLINE=1
