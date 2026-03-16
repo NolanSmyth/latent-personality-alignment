@@ -298,10 +298,16 @@ def main():
     print(f"  Integer token map: {len(int_token_map)} single-token integers (0–100)")
 
     # ── Sweep ─────────────────────────────────────────────────────────────
-    total = len(direction_entries) * len(alphas) * len(eval_questions)
+    nonzero_alphas = [a for a in alphas if a != 0.0]
+    has_baseline = 0.0 in alphas
+    # baseline (α=0) is layer-independent — compute once, replicate for all layers
+    total = len(direction_entries) * len(nonzero_alphas) * len(eval_questions)
+    if has_baseline:
+        total += len(eval_questions)
     print(
-        f"\nStarting sweep: {len(direction_entries)} layers × {len(alphas)} alphas × "
+        f"\nStarting sweep: {len(direction_entries)} layers × {len(nonzero_alphas)} nonzero alphas × "
         f"{len(eval_questions)} questions = {total} generations"
+        + (f" (+ {len(eval_questions)} baseline, shared across layers)" if has_baseline else "")
     )
 
     out_jsonl.parent.mkdir(parents=True, exist_ok=True)
@@ -310,65 +316,78 @@ def main():
     t0 = time.time()
 
     with out_jsonl.open("w") as fout:
-        for layer, v_dir, pt_path in direction_entries:
-            layer_module = gen_model.model.layers[layer]
 
-            for alpha in alphas:
-                hook = SteeringHook(v_dir, alpha) if alpha != 0.0 else None
-                lmod = layer_module if alpha != 0.0 else None
-
-                layer_scores = []
-                for q_idx, question in enumerate(eval_questions):
-                    prompt_str = format_prompt(question)
-                    response = generate(
-                        gen_model,
-                        gen_tokenizer,
-                        prompt_str,
-                        hook=hook,
-                        layer_module=lmod,
-                        max_new_tokens=args.max_new_tokens,
-                    )
-
-                    harm_score = logit_score_response(
-                        judge_model,
-                        judge_tokenizer,
-                        eval_template,
-                        question,
-                        response,
-                        int_token_map=int_token_map,
-                    )
-                    layer_scores.append(harm_score if harm_score is not None else float("nan"))
-
-                    record = {
-                        "layer": layer,
-                        "alpha": alpha,
-                        "question_idx": q_idx,
-                        "question": question,
-                        "response": response,
-                        "harm_score": harm_score,
-                    }
-                    fout.write(json.dumps(record, ensure_ascii=False) + "\n")
-                    fout.flush()
-                    records.append(record)
-                    done += 1
-
-                    elapsed = time.time() - t0
-                    rate = done / elapsed if elapsed > 0 else 0
-                    eta = (total - done) / rate if rate > 0 else float("inf")
-                    score_str = f"{harm_score:.1f}" if harm_score is not None else "None"
-                    print(
-                        f"  layer={layer:>3}  α={alpha:>5}  q={q_idx:>3}  "
-                        f"score={score_str:>5}  "
-                        f"({done}/{total}, ETA {eta/60:.1f}min)  "
-                        f"{response[:60].replace(chr(10), ' ')}"
-                    )
-
-                valid = [s for s in layer_scores if s == s]  # filter NaN
-                mean_score = sum(valid) / len(valid) if valid else float("nan")
-                print(
-                    f"\n  → layer={layer}  α={alpha}: mean harm score = {mean_score:.2f} "
-                    f"({len(valid)}/{len(eval_questions)} valid)\n"
+        def _run_questions(layer: int, alpha: float, hook, lmod) -> None:
+            nonlocal done
+            layer_scores = []
+            for q_idx, question in enumerate(eval_questions):
+                prompt_str = format_prompt(question)
+                response = generate(
+                    gen_model,
+                    gen_tokenizer,
+                    prompt_str,
+                    hook=hook,
+                    layer_module=lmod,
+                    max_new_tokens=args.max_new_tokens,
                 )
+                harm_score = logit_score_response(
+                    judge_model,
+                    judge_tokenizer,
+                    eval_template,
+                    question,
+                    response,
+                    int_token_map=int_token_map,
+                )
+                layer_scores.append(harm_score if harm_score is not None else float("nan"))
+                record = {
+                    "layer": layer,
+                    "alpha": alpha,
+                    "question_idx": q_idx,
+                    "question": question,
+                    "response": response,
+                    "harm_score": harm_score,
+                }
+                fout.write(json.dumps(record, ensure_ascii=False) + "\n")
+                fout.flush()
+                records.append(record)
+                done += 1
+
+                elapsed = time.time() - t0
+                rate = done / elapsed if elapsed > 0 else 0
+                eta = (total - done) / rate if rate > 0 else float("inf")
+                score_str = f"{harm_score:.1f}" if harm_score is not None else "None"
+                print(
+                    f"  layer={layer:>3}  α={alpha:>5}  q={q_idx:>3}  "
+                    f"score={score_str:>5}  "
+                    f"({done}/{total}, ETA {eta/60:.1f}min)  "
+                    f"{response[:60].replace(chr(10), ' ')}"
+                )
+
+            valid = [s for s in layer_scores if s == s]
+            mean_score = sum(valid) / len(valid) if valid else float("nan")
+            print(
+                f"\n  → layer={layer}  α={alpha}: mean harm score = {mean_score:.2f} "
+                f"({len(valid)}/{len(eval_questions)} valid)\n"
+            )
+
+        # Run baseline once (layer=-1 sentinel, α=0)
+        if has_baseline:
+            print("Running baseline (α=0, no steering) — shared across all layers")
+            _run_questions(layer=-1, alpha=0.0, hook=None, lmod=None)
+            # Duplicate baseline records for each layer so the plot has a value per layer
+            baseline_records = [r for r in records if r["alpha"] == 0.0]
+            for layer, _, _ in direction_entries:
+                for r in baseline_records:
+                    dup = dict(r, layer=layer)
+                    fout.write(json.dumps(dup, ensure_ascii=False) + "\n")
+                    fout.flush()
+                    records.append(dup)
+
+        for layer, v_dir, _ in direction_entries:
+            layer_module = gen_model.model.layers[layer]
+            for alpha in nonzero_alphas:
+                hook = SteeringHook(v_dir, alpha)
+                _run_questions(layer=layer, alpha=alpha, hook=hook, lmod=layer_module)
 
     print(f"\nAll {len(records)} records written → {out_jsonl}")
     make_plot(records, out_fig, alphas)
