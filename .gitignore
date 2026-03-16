@@ -2,9 +2,11 @@ AI_CONTEXT.md
 current_state.md
 experiment_results.md
 .github
-diagnostics/
+diagnostics/figures/
+diagnostics/legacy/
 experiments/
 TODOS.md
+results/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -22,9 +22,13 @@ print("=" * 70)
 behaviors_df = pd.read_csv(BEHAVIORS_PATH)
 print(f"Shape: {behaviors_df.shape}")
 print(f"Columns: {behaviors_df.columns.tolist()}")
-print(f"\nFunctionalCategory distribution:\n{behaviors_df['FunctionalCategory'].value_counts()}")
+print(
+    f"\nFunctionalCategory distribution:\n{behaviors_df['FunctionalCategory'].value_counts()}"
+)
 print(f"\nFirst 3 rows:")
-print(behaviors_df.head(3)[["Behavior", "FunctionalCategory", "BehaviorID"]].to_string())
+print(
+    behaviors_df.head(3)[["Behavior", "FunctionalCategory", "BehaviorID"]].to_string()
+)
 
 # ── Load targets (refusals + compliance starts) ────────────────────────────
 print("\n" + "=" * 70)
@@ -62,7 +66,9 @@ print(f"\n{'=' * 70}")
 print("COMPLETENESS CHECK (standard category)")
 print(f"  Missing refusal (llama_prompt_refusal): {n_missing_refusal}")
 print(f"  Missing compliance (optim_target):      {n_missing_comply}")
-print(f"  Usable triples: {standard.shape[0] - max(n_missing_refusal, n_missing_comply)}")
+print(
+    f"  Usable triples: {standard.shape[0] - max(n_missing_refusal, n_missing_comply)}"
+)
 print("=" * 70)
 
 if n_missing_refusal == 0 and n_missing_comply == 0:

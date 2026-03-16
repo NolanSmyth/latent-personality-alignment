@@ -23,33 +23,46 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def main():
     parser = argparse.ArgumentParser(description="Probe refusal direction quality")
-    parser.add_argument("--direction", type=str, required=True,
-                        help="Path to .pt file from extract_refusal_direction.py")
+    parser.add_argument(
+        "--direction",
+        type=str,
+        required=True,
+        help="Path to .pt file from extract_refusal_direction.py",
+    )
     parser.add_argument("--layer", type=int, default=15)
-    parser.add_argument("--n_samples", type=int, default=64,
-                        help="Unused if cached h_refusal/h_comply are in the .pt file")
+    parser.add_argument(
+        "--n_samples",
+        type=int,
+        default=64,
+        help="Unused if cached h_refusal/h_comply are in the .pt file",
+    )
     args = parser.parse_args()
 
     # ── Load saved data ─────────────────────────────────────────────────
     data = torch.load(args.direction, map_location="cpu", weights_only=False)
-    v_refusal = data["v_refusal"]  # unit-normalized direction
-    print(f"Loaded direction from {args.direction}")
+    # Generic key; fall back to legacy per-script keys for old .pt files
+    v_refusal = data.get("v_direction") or data.get("v_refusal") or data.get("v_harm")
+    if v_refusal is None:
+        raise KeyError(f"{args.direction} has none of: v_direction, v_refusal, v_harm")
+    direction_name = data.get("direction_name", "unknown")
+    print(f"Loaded direction from {args.direction} ({direction_name})")
     print(f"  Layer: {data['layer']}, N samples: {data['n_samples']}")
     print(f"  Hidden dim: {v_refusal.shape[0]}")
-    print(f"  ||v_refusal_unnormalized||: {data['norm']:.4f}")
+    print(f"  ||v_direction_unnormalized||: {data['norm']:.4f}")
 
-    if "h_refusal" not in data or "h_comply" not in data:
-        print("\n❌ No cached hidden states in .pt file. Re-run extract_refusal_direction.py.")
-        print("   (Or implement re-collection here — skipped for efficiency.)")
+    h_refusal = data.get("h_positive") or data.get("h_refusal") or data.get("h_harmful")
+    h_comply = data.get("h_negative") or data.get("h_comply") or data.get("h_benign")
+    if h_refusal is None or h_comply is None:
+        print("\n❌ No cached hidden states in .pt file. Re-run the extraction script.")
         return
 
-    h_refusal = data["h_refusal"].float()  # [N, hidden_dim]
-    h_comply = data["h_comply"].float()    # [N, hidden_dim]
+    h_refusal = h_refusal.float()  # [N, hidden_dim]
+    h_comply = h_comply.float()  # [N, hidden_dim]
     N = h_refusal.shape[0]
 
     # ── Project onto direction ──────────────────────────────────────────
     proj_refusal = h_refusal @ v_refusal  # [N]
-    proj_comply = h_comply @ v_refusal    # [N]
+    proj_comply = h_comply @ v_refusal  # [N]
 
     mean_r = proj_refusal.mean().item()
     mean_c = proj_comply.mean().item()
@@ -86,7 +99,9 @@ def main():
     if gap > 0.1 and accuracy > 0.7:
         print(f"✅ PASS: Direction is meaningful (gap={gap:.4f}, acc={accuracy:.1%})")
     elif gap > 0:
-        print(f"⚠️  WEAK: Direction has some signal but may be noisy (gap={gap:.4f}, acc={accuracy:.1%})")
+        print(
+            f"⚠️  WEAK: Direction has some signal but may be noisy (gap={gap:.4f}, acc={accuracy:.1%})"
+        )
     else:
         print(f"❌ FAIL: Direction has wrong sign or no signal (gap={gap:.4f})")
     print(f"{'=' * 60}")
