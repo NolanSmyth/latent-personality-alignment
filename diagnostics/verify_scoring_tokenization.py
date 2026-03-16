@@ -97,7 +97,9 @@ def main() -> None:
     print("\nSummary")
     print("-" * 78)
     print(f"Single-token values in current map (plain only): {len(exact_values)}/101")
-    print(f"Single-token values in any tested variant:       {len(any_variant_values)}/101")
+    print(
+        f"Single-token values in any tested variant:       {len(any_variant_values)}/101"
+    )
     print(f"`9` in current map?  {9 in exact_values}")
     print(f"`99` in current map? {99 in exact_values}")
     print(f"`100` in current map? {100 in exact_values}")
@@ -141,9 +143,7 @@ def main() -> None:
         }
 
         # suspicious if unavailable in current map but available in a prefixed form
-        has_prefixed = any(
-            row[k] is not None for k in ("space", "newline", "nl_space")
-        )
+        has_prefixed = any(row[k] is not None for k in ("space", "newline", "nl_space"))
         if (not row["in_current"]) and has_prefixed:
             suspicious_rows.append(row)
 
