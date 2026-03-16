@@ -33,7 +33,7 @@ from latent_at.paths import get_model_path
 
 # ── Defaults ────────────────────────────────────────────────────────────────
 MODEL_NAME = "Qwen/Qwen3-8B"
-DEFAULT_TRAIT_FILE = "data/harmfulness_trait.json"
+DEFAULT_TRAIT_FILE = "traits/harmfulness_trait.json"
 # Use only the first 20 questions for extraction; remaining 20 reserved for eval.
 DEFAULT_N_SAMPLES = 20
 

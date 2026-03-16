@@ -12,21 +12,20 @@ LPA's safety gains are **generation collapse artifacts**, not genuine personalit
 
 ---
 
-## Next: Investigate Generation Collapse Mechanism
+## EXP-019: Direction Extraction and Activation Steering
 
-**Branch**: TBD  
-**Goal**: Understand *why* LAT collapses generation and whether it can be prevented while genuinely inducing personality change.
+**Branch**: `exp/harmfulness_vector`
+**Status**: Results obtained — see `diagnostics/` and `results/`
+**Goal**: Extract refusal and harmfulness directions from Qwen3-8B's residual stream and test whether steering along these directions controls harmful generation.
 
----
+### Key findings so far
+- Two extraction approaches (persona-vector style vs. HarmBench pre-fill) have cosine sim ~0.15 — different phenomena
+- Steering *away* from refusal direction → coherent harmful outputs
+- Steering *toward* harm direction → incoherent/edgy outputs; less effective
+- Over-refusal on benign prompts is low under steering alone
 
-## EXP-019: Refusal Direction Extraction and Activation Steering
-
-**Branch**: `exp/harmfulness_vector`  
-**Status**: Scripts ready, awaiting GPU execution  
-**Goal**: Extract a "refusal direction" from Qwen3-8B's residual stream (layer 15) using mean-difference on HarmBench contrastive pairs, then test whether adding/subtracting this direction steers generation toward refusal or compliance.
-
-### Steps
-1. `diagnostics/inspect_harmbench_data.py` — ✅ Data audit complete (200 standard-category triples)
-2. `diagnostics/extract_refusal_direction.py` — Extract direction → `results/refusal_direction_layer15.pt`
-3. `diagnostics/probe_refusal_direction.py` — Linear probe sanity check
-4. `diagnostics/steer_refusal.py` — Steering at α ∈ {1, 5, 10, 20} → `results/steer_refusal_alpha*.jsonl`
+### Next steps
+- Sweep direction extraction across all layers (currently only layer 15)
+- Sweep trait score threshold for class separation in harmfulness direction
+- Extract refusal vector from benign prompts with refusal completions; compare to refusal direction on unsafe prompts
+- Test whether adversarial training on the refusal direction causes over-refusal (steering alone doesn't)

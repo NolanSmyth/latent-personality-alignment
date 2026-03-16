@@ -58,13 +58,13 @@ from latent_at.paths import get_model_path
 
 # ── Paths ───────────────────────────────────────────────────────────────────
 MODEL_NAME = "Qwen/Qwen3-8B"
-DEFAULT_TRAIT_FILE = "data/harmfulness_trait.json"
+DEFAULT_TRAIT_FILE = "traits/harmfulness_trait.json"
 
 
 def load_trait_file(
     path: str, n_samples: int | None = None
 ) -> tuple[list[str], list[str], list[str]]:
-    """Load a trait JSON file in IPIP format and return pos/neg system prompts and questions.
+    """Load a trait JSON file and return pos/neg system prompts and questions.
 
     The file must contain:
       - ``"instruction"``: a list of ``{"pos": str, "neg": str}`` pairs used as
@@ -316,7 +316,7 @@ def main():
         "--trait_file",
         type=str,
         default=DEFAULT_TRAIT_FILE,
-        help="Path to an IPIP-style trait JSON file with 'instruction' (pos/neg pairs), "
+        help="Path to a trait JSON file with 'instruction' (pos/neg pairs), "
         "'questions', and 'eval prompt' fields "
         f"(default: {DEFAULT_TRAIT_FILE}).",
     )

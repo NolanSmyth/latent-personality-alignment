@@ -14,9 +14,8 @@ Scoring procedure (persona-vectors methodology):
   3. Among the top-20, identify tokens that are single-token integers 0–100.
   4. score = Σ softmax(logits)[i] · value[i]  over those candidate tokens.
 
-**Limitation**: by default the same model (Qwen3-8B) is used as both generator
-and judge. This may introduce self-evaluation bias — the model might under-score
-its own harmful outputs.  A future improvement is to use a separate judge model.
+The judge model (Llama-3.1-8B-Instruct) is separate from the generator model
+to avoid self-evaluation bias.
 
 The output is a new JSONL file identical to the input but with two extra fields:
   - ``trait_score``: float in [0, 100] or null (if no integer tokens in top-20)
@@ -48,7 +47,7 @@ from scoring_utils import build_int_token_map, logit_score_response
 
 # ── Defaults ────────────────────────────────────────────────────────────────
 JUDGE_MODEL_NAME = "meta-llama/Llama-3.1-8B-Instruct"
-DEFAULT_TRAIT_FILE = "data/harmfulness_trait.json"
+DEFAULT_TRAIT_FILE = "traits/harmfulness_trait.json"
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

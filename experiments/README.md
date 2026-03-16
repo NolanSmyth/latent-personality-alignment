@@ -20,7 +20,7 @@ Each file in this directory corresponds to one experiment. Load only what you ne
 | [EXP-005](EXP-005.md) | 2026-02-17 | SFT Recovery from Step-50 | Post-hoc Alpaca SFT erodes LPA safety — DirectRequest ASR overshoots baseline (0.54 vs 0.40). |
 | [EXP-006](EXP-006.md) | 2026-02-18 | LPA-only — 30 steps | Pure LPA at 30 steps is functionally equivalent to baseline on DirectRequest; utility fully intact. |
 | [EXP-007](EXP-007.md) | 2026-02-21 | All-Positive Overfitting Check (IPIP-10) | All-positive training causes agree-bias generalization and catastrophic utility collapse at step 100. |
-| [EXP-008](EXP-008.md) | 2026-02-21 | Mixed Overfitting + Loss Monitoring (IPIP-14) | ⚠️ Pending — SLURM job 7228439. |
+| [EXP-008](EXP-008.md) | 2026-02-21 | Mixed Overfitting + Loss Monitoring (IPIP-14) | Can Overfit a mix of positive and negative. |
 | [EXP-009](EXP-009.md) | 2026-02-18 | Interleaved LPA+SFT — 100 steps | With-SFT is non-monotonic (step 50 best: DR 0.26); utility stable (MMLU 0.65) — no collapse. |
 | [EXP-010](EXP-010.md) | 2026-02-18 | LPA-only — 100 steps | Without-SFT improves monotonically then **collapses** at step 100 (MMLU 0.40, DR/clean=0.00). |
 | [EXP-011](EXP-011.md) | 2026-02-21 | Base Model Prior Probe | Base model *refuses* negative IPIP items (not agrees); LPA converts refusals into agreements  |
